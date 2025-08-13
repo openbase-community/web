@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+APP_NAME="$1"
+GH_PAT="$2"
+APP_REQUIREMENTS="$3"
+
+WEB_CMD='gunicorn config.asgi:application --log-file - -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT'
+WORKER_CMD="taskiq worker --log-level=INFO config.taskiq_config:broker config.taskiq_tasks"
+BEAT_CMD="taskiq scheduler --log-level=INFO config.taskiq_config:scheduler config.taskiq_tasks"
+RELEASE_CMD='python3 manage.py migrate'
+
+mv ./Dockerfile ./Dockerfile.tmp
+echo "$(date)" > nocache.txt
+
+# Write app requirements to file
+echo "${APP_REQUIREMENTS}" > app_requirements_docker.txt
+
+# Define build configurations
+declare -A configs=(
+    ["web"]="${WEB_CMD}"
+    ["worker"]="${WORKER_CMD}"
+    ["beat"]="${BEAT_CMD}"
+    ["release"]="${RELEASE_CMD}"
+)
+
+# Build each configuration
+for type in "${!configs[@]}"; do
+    cat ./Dockerfile.tmp > ./Dockerfile
+    echo "CMD ${configs[$type]}" >> Dockerfile
+    docker buildx build --push -t "registry.heroku.com/${APP_NAME}/${type}:latest" \
+        --build-arg GH_PAT="${GH_PAT}" \
+        --provenance false \
+        --cache-to "type=gha,mode=max,repository=openbase-community/web,ghtoken=${GH_PAT}" \
+        --cache-from type=gha .
+done

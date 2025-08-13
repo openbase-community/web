@@ -1,0 +1,15 @@
+#!/bin/bash
+
+set -euo pipefail
+
+# Navigate to the project root directory (parent of scripts)
+pushd "$(dirname "$0")/.."
+PROJECT_ROOT=$(pwd)
+
+# Run docker compose build
+docker compose build 
+
+# Install dependencies
+pip install -r workspace_requirements.txt
+
+popd

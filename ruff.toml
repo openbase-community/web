@@ -1,0 +1,62 @@
+target-version = "py313"
+
+[lint]
+select = ["ALL"]
+fixable = ["ALL"]
+ignore = [
+    "D",       # Don't enforce docstrings
+    "ANN",     # Don't require type annotations
+    "EM",      # Requires putting exception message in variable first to reduce redundancy in the output logs. Let Cursor do what it wants with this.
+    "TD",      # No rules for TODO comments
+    "C901",    # We should let Cursor write complex code
+    "ARG001",  # Unused arguments are common in DRF and renaming could lead to inheritance problems.
+    "ARG002",  # Same as ARG001 but for methods.
+    "PLR0913", # We should let Cursor write functions with many arguments.
+    "E501",    # Netpick about long lines.
+    "F821",    # Undefined names will be caught by Pylance with a suggestion to import the name.
+    "TRY003",  # We should let Cursor raise descriptive errors without making new Exception classes all the time. Re-using exceptions/messages is not that important.
+    "ERA001",  # Commented out code can be useful to leave behind alternative ideas
+    "PLR0912", # We should let Cursor write complex code
+    "DTZ006",  # Sometimes naive datetimes are needed
+    "G004",    # Logging f-strings isn't actually a problem anymore: https://github.com/pylint-dev/pylint/issues/2395
+    "TRY301",  # Prohibits a common pattern (raise within try)
+    "TRY300",  # Prohibits a common pattern (returning within try)
+    "RET504",  # Assigning to a variable before returning is useful for logging of results
+    "PLR2004", # Let Cursor make comparisons with hard-coded values.
+    "RUF012",  # Enforcing no class attributes doesn't play well with Django Meta.
+    "PGH003",  # Takes too long to track down the specific rule codes when ignoring linter rules inline.
+    "N806",    # It's nice to have uppercase variable names when they are types.,
+    "PLR0915", # It's fine to have long function bodies,
+    "W293",    # Let blank lines have whitespace in AI system prompt blocks,
+    "COM812",  # No need for trailing comma in argument lists,
+    "PGH004",  # I want to write 'noqa' in comments sometimes without a specific rule code.
+]
+
+# Could re-enable EM.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "dist",
+    "node_modules",
+    "venv",
+    "*/migrations/*",
+]
+
+[lint.per-file-ignores]
+"models.py" = ["PLC0415"]  # Import tasks locally
+"views.py" = ["PLC0415"]  # Import tasks locally
