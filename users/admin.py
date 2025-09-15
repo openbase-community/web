@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from .models import User, EmailValidationToken, PasswordResetToken, UserAPNSToken
+from .models import User
 
 
 class CustomUserAdmin(UserAdmin):
@@ -38,7 +40,3 @@ class CustomUserAdmin(UserAdmin):
 
 
 admin.site.register(User, CustomUserAdmin)
-
-admin.site.register(EmailValidationToken)
-admin.site.register(PasswordResetToken)
-admin.site.register(UserAPNSToken)
