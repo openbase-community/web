@@ -1,6 +1,7 @@
 import secrets
 
 from django.db import models
+from rest_framework import serializers
 
 
 def generate_random_id(length=12):
@@ -24,3 +25,12 @@ class OpaquePublicIdField(models.CharField):
             value = generate_random_id()
             setattr(model_instance, self.attname, value)
         return value
+
+
+class UserOwnedPrimaryKeyRelatedField(serializers.PrimaryKeyRelatedField):
+    async def get_queryset(self):
+        request = self.context.get("request", None)
+        queryset = super().get_queryset()
+        if not request or not queryset:
+            return None
+        return queryset.filter(user=request.user)

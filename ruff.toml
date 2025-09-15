@@ -1,23 +1,31 @@
 target-version = "py313"
 
 [lint]
+preview = true
+explicit-preview-rules = true
+future-annotations = true
 select = ["ALL"]
 fixable = ["ALL"]
+
+extend-safe-fixes = [
+    "TCH",   # Allow automatic placement of imports in TYPE_CHECKING blocks.
+    "EM"     # When raising an f-string exception, move to msg first.
+]
+extend-select = ["TCH"]
+
 ignore = [
     "D",       # Don't enforce docstrings
     "ANN",     # Don't require type annotations
-    "EM",      # Requires putting exception message in variable first to reduce redundancy in the output logs. Let Cursor do what it wants with this.
     "TD",      # No rules for TODO comments
-    "C901",    # We should let Cursor write complex code
+    "C901",    # OPTIONAL: We should let Cursor write complex code
     "ARG001",  # Unused arguments are common in DRF and renaming could lead to inheritance problems.
     "ARG002",  # Same as ARG001 but for methods.
     "PLR0913", # We should let Cursor write functions with many arguments.
     "E501",    # Netpick about long lines.
-    "F821",    # Undefined names will be caught by Pylance with a suggestion to import the name.
+    "F821",    # Undefined names will be caught by Pylance with a suggestion to import the name (more useful than Ruff which doesn't suggest an import action).
     "TRY003",  # We should let Cursor raise descriptive errors without making new Exception classes all the time. Re-using exceptions/messages is not that important.
     "ERA001",  # Commented out code can be useful to leave behind alternative ideas
-    "PLR0912", # We should let Cursor write complex code
-    "DTZ006",  # Sometimes naive datetimes are needed
+    # "PLR0912", # We should let Cursor write complex code
     "G004",    # Logging f-strings isn't actually a problem anymore: https://github.com/pylint-dev/pylint/issues/2395
     "TRY301",  # Prohibits a common pattern (raise within try)
     "TRY300",  # Prohibits a common pattern (returning within try)
@@ -25,11 +33,17 @@ ignore = [
     "PLR2004", # Let Cursor make comparisons with hard-coded values.
     "RUF012",  # Enforcing no class attributes doesn't play well with Django Meta.
     "PGH003",  # Takes too long to track down the specific rule codes when ignoring linter rules inline.
-    "N806",    # It's nice to have uppercase variable names when they are types.,
+    "N806",    # It's nice to have uppercase variable names when they are types.
     "PLR0915", # It's fine to have long function bodies,
     "W293",    # Let blank lines have whitespace in AI system prompt blocks,
     "COM812",  # No need for trailing comma in argument lists,
     "PGH004",  # I want to write 'noqa' in comments sometimes without a specific rule code.
+    "B027",    # This rule makes no sense if an abstract class has some no-op-by-default methods.
+    "B024",    # SimulatableEntity is abstract, but all the methods meant to be overridden are fine as no-op if by design.
+    "RET505",  # I simply don't agree that this makes the code more readable.
+    "PLR6301", # We allow methods that don't use self.  These could be useful for subclasses to override.  More refactoring work is needed if not.
+    "CPY001",  # Don't need copyright at the top of every file.
+    "S608",    # Has to do with SQL, which we never use.
 ]
 
 # Could re-enable EM.
@@ -57,6 +71,12 @@ exclude = [
     "*/migrations/*",
 ]
 
+[lint.isort]
+required-imports = ["from __future__ import annotations"]
+
+
 [lint.per-file-ignores]
 "models.py" = ["PLC0415"]  # Import tasks locally
 "views.py" = ["PLC0415"]  # Import tasks locally
+"simulation.py" = ["S101"]  # Asserts allowed
+"*/tests/*" = ["S101", "T201", "INP001"]  # Asserts, prints allowed

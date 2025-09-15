@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timedelta
+from typing import Optional
 
 import pytz
 import stripe
@@ -69,7 +70,7 @@ class AddValueView(generics.CreateAPIView):
             return JsonResponse({"success": True})
         except stripe.error.CardError as e:
             logger.error(
-                f"Payment failed: User={request.user.id}, Amount={amount}, Error={e!s}"
+                f"Payment failed: User={request.user.id}, Amount={amount}, Error={str(e)}"
             )
             return JsonResponse({"error": e.user_message}, status=400)
 
@@ -256,7 +257,7 @@ def get_apple_storekit_api_clients():
 
 def get_transaction_history(
     transaction_id: str,
-    revision: str | None,
+    revision: Optional[str],
     transaction_history_request: TransactionHistoryRequest,
     version: GetTransactionHistoryVersion = GetTransactionHistoryVersion.V1,
 ):
@@ -282,7 +283,7 @@ class AppleSubscription(APIView):
             )
 
         transactions = []
-        response: HistoryResponse | None = None
+        response: Optional[HistoryResponse] = None
         request: TransactionHistoryRequest = TransactionHistoryRequest(
             sort=Order.ASCENDING,
             revoked=False,
@@ -332,7 +333,7 @@ class StripeCustomerPortalView(APIView):
             )
             return Response({"url": session.url})
         except stripe.error.StripeError as e:
-            logger.error(f"Stripe portal session creation failed: {e!s}")
+            logger.error(f"Stripe portal session creation failed: {str(e)}")
             return Response(
                 {"error": "Failed to create portal session"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -379,7 +380,7 @@ class StripeCheckoutView(APIView):
             )
             return Response({"url": session.url})
         except stripe.error.StripeError as e:
-            logger.error(f"Stripe checkout session creation failed: {e!s}")
+            logger.error(f"Stripe checkout session creation failed: {str(e)}")
             return Response(
                 {"error": "Failed to create checkout session"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -398,10 +399,10 @@ class StripeWebhookView(APIView):
                 payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
             )
         except ValueError as e:
-            logger.error(f"Invalid payload: {e!s}")
+            logger.error(f"Invalid payload: {str(e)}")
             return Response(status=status.HTTP_400_BAD_REQUEST)
         except stripe.error.SignatureVerificationError as e:
-            logger.error(f"Invalid signature: {e!s}")
+            logger.error(f"Invalid signature: {str(e)}")
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
         # Handle subscription events

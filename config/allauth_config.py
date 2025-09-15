@@ -1,6 +1,13 @@
+from __future__ import annotations
+
+from typing import Any
+
 from allauth.account.adapter import DefaultAccountAdapter
+from allauth.account.utils import user_display
 from allauth.core import context
+from allauth.headless.adapter import DefaultHeadlessAdapter
 from django.contrib.sites.shortcuts import get_current_site
+
 from sites.utils import get_current_site_attributes
 
 
@@ -15,3 +22,20 @@ class AccountAdapter(DefaultAccountAdapter):
         assert site_attributes is not None
 
         return f"{site.name} <{site_attributes.from_email}>"
+
+
+class HeadlessAdapter(DefaultHeadlessAdapter):
+    def serialize_user(self, user) -> dict[str, Any]:
+        """
+        From allauth docs: Do not override this method if you would like your customized user payloads
+        to be reflected in the (dynamically rendered) OpenAPI specification. In that
+        case, override ``get_user_dataclass()`` and ``user_as_dataclass`` instead.
+        """
+        return {
+            "id": user.id,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "display": user_display(user),
+            "has_usable_password": user.has_usable_password(),
+        }

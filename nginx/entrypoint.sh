@@ -4,7 +4,7 @@ set -euo pipefail
 
 # Set default values if environment variables are not provided
 export PROXY_TARGET=${PROXY_TARGET:-http://host.docker.internal:8000}
-export FRONTEND_PROXY_TARGET=${FRONTEND_PROXY_TARGET:-https://preview--my-app.lovable.app}
+export FRONTEND_PROXY_TARGET=${FRONTEND_PROXY_TARGET:-localhost:8080}
 
 echo "Configuring nginx with:"
 echo "  PROXY_TARGET: $PROXY_TARGET"

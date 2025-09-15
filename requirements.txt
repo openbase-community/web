@@ -25,7 +25,7 @@ openai-agents==0.2.3
 pgvector==0.4.1
 pretty_errors==1.2.25
 psycopg[binary]==3.2.9
-pytest==8.4.1
+pytest==8.4.2
 pytest-django==4.11.1
 python-dotenv==1.1.1
 pytz==2025.2
@@ -38,4 +38,4 @@ taskiq-redis==1.0.9
 twilio==9.7.0
 uvicorn[standard]==0.35.0
 markdown==3.8.2
-langfuse==3.2.1
+langfuse==3.3.4

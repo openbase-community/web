@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 from pathlib import Path
 from urllib.parse import urlparse
@@ -332,6 +334,10 @@ else:
 
 CORS_ALLOW_CREDENTIALS = True
 
+LOGIN_REDIRECT_URL = "/"
+
+LOGOUT_REDIRECT_URL = "/"
+
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY")
 STRIPE_PRODUCT_ID = os.environ.get("STRIPE_PRODUCT_ID", "prod_implementme")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET")
@@ -365,6 +371,7 @@ if not DEBUG:
     ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
 
 ACCOUNT_ADAPTER = "config.allauth_config.AccountAdapter"
+HEADLESS_ADAPTER = "config.allauth_config.HeadlessAdapter"
 
 HEADLESS_ENABLED = True
 HEADLESS_ONLY = True
