@@ -97,7 +97,7 @@ if SocialApp.objects.filter(provider='google').exists():
 else:
     try:
         print('No Google OAuth configuration found.')
-        print('Please paste your Google OAuth credentials JSON and press Enter:')
+        print('Please paste your Google OAuth credentials JSON and press Enter (or CTRL+C to skip):')
         credentials_raw = input()
         credentials = json.loads(credentials_raw)
         
