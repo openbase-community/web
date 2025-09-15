@@ -71,11 +71,25 @@ if ! python manage.py shell -c "from django.contrib.auth import get_user_model; 
 else
     echo "Superuser already exists, skipping creation..."
 fi
+python manage.py shell -c "
+from django.contrib.auth import get_user_model
+from allauth.account.models import EmailAddress
+User = get_user_model()
+u = User.objects.filter(is_superuser=True).first()
+u.first_name = 'Test'
+u.last_name = 'User'
+u.save()
+e, created = EmailAddress.objects.get_or_create(
+    user=u, email=u.email,
+    defaults={'verified': True, 'primary': True}
+)
+"
 
 # Create default site
 echo "Creating/getting default site..."
 python manage.py shell -c "
 from django.contrib.sites.models import Site
+from sites.models import SiteAttributes
 Site.objects.update_or_create(
     id=1,
     defaults={'name': 'localhost', 'domain': '0.0.0.0:8000'}
@@ -83,6 +97,20 @@ Site.objects.update_or_create(
 Site.objects.update_or_create(
     id=2,
     defaults={'name': 'localhost', 'domain': 'localhost'}
+)
+site_attribute_defaults = {
+    's3_frontend_folder': 'only-used-in-production',
+    'stripe_product_id': 'prod_implementme',
+    'stripe_price_cents': 2000,
+    'from_email': 'team@my-app.openbase.app',
+}
+SiteAttributes.objects.get_or_create(
+    site=Site.objects.get(id=1),
+    defaults=site_attribute_defaults
+)
+SiteAttributes.objects.get_or_create(
+    site=Site.objects.get(id=2),
+    defaults=site_attribute_defaults
 )"
 
 # Check for existing Google OAuth app and create if not present
