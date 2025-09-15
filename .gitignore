@@ -5,7 +5,6 @@ app_requirements_docker.txt
 playground
 
 .vscode/settings.json
-.vscode/tasks.json
 
 schema.yml
 .data/
