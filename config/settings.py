@@ -371,8 +371,8 @@ ACCOUNT_LOGIN_ON_PASSWORD_RESET = True
 if not DEBUG:
     ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
 
-ACCOUNT_ADAPTER = "config.allauth_config.AccountAdapter"
-HEADLESS_ADAPTER = "config.allauth_config.HeadlessAdapter"
+ACCOUNT_ADAPTER = "config.allauth_adapter.AccountAdapter"
+HEADLESS_ADAPTER = "config.allauth_adapter.HeadlessAdapter"
 
 HEADLESS_ENABLED = True
 HEADLESS_ONLY = True
