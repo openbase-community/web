@@ -15,7 +15,7 @@
         {
             "label": "Make migrations",
             "type": "shell",
-            "command": "python",
+            "command": "${command:python.interpreterPath}",
             "args": [
                 "manage.py",
                 "makemigrations"
@@ -30,7 +30,7 @@
         {
             "label": "Migrate",
             "type": "shell",
-            "command": "python",
+            "command": "${command:python.interpreterPath}",
             "args": [
                 "manage.py",
                 "migrate"
@@ -75,7 +75,7 @@
         {
             "label": "Collect static",
             "type": "shell",
-            "command": "python",
+            "command": "${command:python.interpreterPath}",
             "args": [
                 "manage.py",
                 "collectstatic",
