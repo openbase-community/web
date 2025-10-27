@@ -257,6 +257,7 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "DEFAULT_GENERATOR_CLASS": "config.spectacular_generators.TitleSettingGenerator",
+    "COMPONENT_SPLIT_REQUEST": True,
 }
 
 ASGI_APPLICATION = "config.routing.application"

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from asgiref.sync import async_to_sync
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
@@ -16,7 +18,6 @@ class UserSerializer(BaseModelSerializer):
             "first_name",
             "last_name",
             "balance",
-            "account_uuid",
             "active_subscription",
         ]
         read_only_fields = ["email", "balance"]

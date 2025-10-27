@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from rest_framework import serializers
 
 
@@ -28,9 +30,8 @@ class PublicIDRelatedField(serializers.RelatedField):
 
     def to_internal_value(self, data):
         if self.queryset is None:
-            raise NotImplementedError(
-                "Writable PublicIDRelatedField must include a `queryset` argument."
-            )
+            msg = "Writable PublicIDRelatedField must include a `queryset` argument."
+            raise NotImplementedError(msg)
 
         try:
             return self.queryset.get(public_id=data)
