@@ -7,7 +7,7 @@ GH_PAT="$2"
 APP_REQUIREMENTS="$3"
 
 WEB_CMD='gunicorn config.asgi:application --log-file - -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT'
-WORKER_CMD="taskiq worker --log-level=INFO config.taskiq_config:broker config.taskiq_tasks"
+WORKER_CMD="taskiq worker --log-level=INFO --max-threadpool-threads=2 config.taskiq_config:broker config.taskiq_tasks"
 BEAT_CMD="taskiq scheduler --log-level=INFO config.taskiq_config:scheduler config.taskiq_tasks"
 RELEASE_CMD='python3 manage.py migrate'
 
