@@ -19,6 +19,7 @@ class UserSerializer(BaseModelSerializer):
             "last_name",
             "balance",
             "active_subscription",
+            "is_staff",
         ]
         read_only_fields = ["email", "balance"]
 
