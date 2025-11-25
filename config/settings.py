@@ -172,6 +172,16 @@ STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
 MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/media/"
 DEFAULT_FILE_STORAGE = "config.storages.S3MediaStorage"
 
+# TODO: Remove legacy settings around storages
+STORAGES = {
+    "default": {
+        "BACKEND": "config.storages.S3MediaStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+    },
+}
+
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
 # Default primary key field type
