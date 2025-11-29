@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import httpx
 from django.conf import settings
 from django.core.cache import cache

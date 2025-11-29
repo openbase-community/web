@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 import dj_database_url
 import sentry_sdk
 
-from config.app_packages import get_package_apps
+from config.app_packages import get_package_apps, load_all_package_settings
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -30,7 +30,7 @@ ALLOWED_HOSTS = (
 if DEBUG:
     ALLOWED_HOSTS += [
         "localhost",
-        "0.0.0.0",
+        "0.0.0.0",  # noqa: S104
         "10.0.1.154",
         "host.docker.internal",
     ]
@@ -66,7 +66,9 @@ INSTALLED_APPS = [
     "contact.apps.ContactConfig",
     "payment.apps.PaymentConfig",
     "teams.apps.TeamsConfig",
-] + get_package_apps()
+    "agent.apps.AgentsConfig",
+    *get_package_apps(),
+]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -167,12 +169,10 @@ AWS_S3_OBJECT_PARAMETERS = {
 AWS_LOCATION = "static"  # subdirectory in S3 for static files
 
 STATIC_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/"
-STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
 
 MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/media/"
-DEFAULT_FILE_STORAGE = "config.storages.S3MediaStorage"
 
-# TODO: Remove legacy settings around storages
+# Django 4.2+ STORAGES configuration
 STORAGES = {
     "default": {
         "BACKEND": "config.storages.S3MediaStorage",
@@ -205,8 +205,8 @@ def get_logging_module_names():
         "config",
         "contact",
         "payment",
-        "users",
         "teams",
+        "users",
     ]
     return base_apps + get_package_apps()
 
@@ -326,11 +326,10 @@ NOTIFICATIONS_SANDBOX = os.environ.get("NOTIFICATIONS_SANDBOX", "0") == "1"
 
 if not DEBUG:
     CSRF_TRUSTED_ORIGINS = [f"https://{domain}" for domain in ALLOWED_HOSTS]
-    CORS_ALLOWED_ORIGINS = [f"https://{AWS_S3_CUSTOM_DOMAIN}"] + CSRF_TRUSTED_ORIGINS
+    CORS_ALLOWED_ORIGINS = [f"https://{AWS_S3_CUSTOM_DOMAIN}", *CSRF_TRUSTED_ORIGINS]
 else:
     CSRF_TRUSTED_ORIGINS = [
         "http://localhost:3000",
-        "http://localhost:5173",
         "http://0.0.0.0:8000",
         "http://localhost",
     ]
@@ -338,7 +337,6 @@ else:
     # CSRF_COOKIE_DOMAIN = ".localhost"
     CORS_ALLOWED_ORIGINS = [
         "http://localhost:3000",
-        "http://localhost:5173",
         "http://0.0.0.0:8000",
         "http://localhost",
     ]
@@ -353,7 +351,13 @@ STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY")
 STRIPE_PRODUCT_ID = os.environ.get("STRIPE_PRODUCT_ID", "prod_implementme")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET")
 
-ADMIN_SUFFIX = os.environ.get("ADMIN_SUFFIX", "implement-me")
+APPLE_BUNDLE_ID = os.environ.get("APPLE_BUNDLE_ID")
+APPLE_APP_APPLE_ID = os.environ.get("APPLE_APP_APPLE_ID")
+APPLE_STOREKIT_KEY_ID = os.environ.get("APPLE_STOREKIT_KEY_ID")
+APPLE_STOREKIT_ISSUER_ID = os.environ.get("APPLE_STOREKIT_ISSUER_ID")
+APPLE_STOREKIT_P8_CONTENTS = os.environ.get("APPLE_STOREKIT_P8_CONTENTS")
+
+ADMIN_SUFFIX = os.environ["DJANGO_ADMIN_SUFFIX"]
 
 SENTRY_DSN = os.environ.get("SENTRY_DSN")
 if SENTRY_DSN:
@@ -397,7 +401,7 @@ HEADLESS_FRONTEND_URLS = {
 # Optional but recommended for email-only setup
 ACCOUNT_EMAIL_SUBJECT_PREFIX = ""
 ACCOUNT_UNIQUE_EMAIL = True
-ACCOUNT_USER_DISPLAY = lambda user: user.email
+ACCOUNT_USER_DISPLAY = lambda user: user.email  # noqa: E731
 
 SOCIALACCOUNT_EMAIL_REQUIRED = True
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
@@ -414,3 +418,7 @@ EMAIL_HOST_USER = "apikey"  # this is exactly the value 'apikey'
 EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
+
+
+# Load settings.py from each app if it exists
+load_all_package_settings(globals())

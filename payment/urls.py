@@ -11,6 +11,16 @@ urlpatterns = [
         name="add_value_history",
     ),
     path(
+        "apple-webhook/",
+        csrf_exempt(views.AppleWebhookView.as_view()),
+        name="apple_webhook",
+    ),
+    path(
+        "apple-subscription/",
+        csrf_exempt(views.AppleSubscription.as_view()),
+        name="apple_subscription",
+    ),
+    path(
         "customer-portal/",
         views.StripeCustomerPortalView.as_view(),
         name="customer_portal",

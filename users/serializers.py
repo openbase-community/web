@@ -21,7 +21,7 @@ class UserSerializer(BaseModelSerializer):
             "active_subscription",
             "is_staff",
         ]
-        read_only_fields = ["email", "balance"]
+        read_only_fields = ["email", "balance", "is_staff"]
 
     balance = serializers.SerializerMethodField()
     active_subscription = serializers.SerializerMethodField()

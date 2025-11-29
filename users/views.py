@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from rest_framework import generics, status
@@ -54,6 +56,7 @@ class DeleteUserView(APIView):
         payload = request.data
         confirm = payload.get("confirm")
         if not confirm or confirm != "yes":
-            raise ValidationError("Key 'confirm' is required. Must be set to 'yes'")
+            msg = "Key 'confirm' is required. Must be set to 'yes'"
+            raise ValidationError(msg)
         self.request.user.delete()
         return Response({"message": "Account deleted successfully."})

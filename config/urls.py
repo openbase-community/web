@@ -3,13 +3,18 @@ from __future__ import annotations
 import json
 import os
 
+import allauth.headless.urls
+
 # from django.contrib import admin
 from django.conf import settings
 
 # from django.contrib import admin # Comment out or remove, as we use the custom site instance directly
 from django.contrib import admin
 from django.urls import include, path
-from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularSwaggerView,
+)
 from oauth2_provider.urls import (
     base_urlpatterns as oauth_base_url_patterns,
 )
@@ -46,7 +51,10 @@ urlpatterns = [
     path("api/", include("users.urls")),
     path("api/", include("contact.urls")),
     path("api/", include("payment.urls")),
+    path("api/", include("agent.urls")),  # Add agents app URLs
 ]
+
+extra_urls = allauth.headless.urls
 
 # Load site prefixes from JSON env variable
 url_prefixes = json.loads(os.environ.get("URL_PREFIXES", "{}"))

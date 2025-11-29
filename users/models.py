@@ -1,4 +1,10 @@
+from __future__ import annotations
+
+import datetime
+import uuid
+
 import stripe
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import (
     AbstractBaseUser,
@@ -11,6 +17,8 @@ from django.dispatch import receiver
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
 
+stripe.api_key = settings.STRIPE_SECRET_KEY
+
 
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -18,7 +26,8 @@ class UserManager(BaseUserManager):
         Create and save a User with the given email and password.
         """
         if not email:
-            raise ValueError("The Email field must be set")
+            msg = "The Email field must be set"
+            raise ValueError(msg)
         email = self.normalize_email(email)
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
@@ -33,9 +42,11 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault("is_superuser", True)
 
         if extra_fields.get("is_staff") is not True:
-            raise ValueError("Superuser must have is_staff=True.")
+            msg = "Superuser must have is_staff=True."
+            raise ValueError(msg)
         if extra_fields.get("is_superuser") is not True:
-            raise ValueError("Superuser must have is_superuser=True.")
+            msg = "Superuser must have is_superuser=True."
+            raise ValueError(msg)
 
         return self.create_user(email, password, **extra_fields)
 
@@ -47,13 +58,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     date_joined = models.DateTimeField(default=timezone.now)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
-    phone_number_in_validation = models.CharField(max_length=32, null=True, blank=True)
-    phone_number_validation_code = models.CharField(
-        max_length=32, null=True, blank=True
-    )
+    phone_number_in_validation = models.CharField(max_length=32, blank=True)
+    phone_number_validation_code = models.CharField(max_length=32, blank=True)
     phone_number = models.CharField(
         max_length=32,
-        null=True,
         blank=True,
         help_text="Warning: Changing this bypasses validation. Make sure the user actually owns this number!",
     )
@@ -114,7 +122,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         """
         Return the first_name plus the last_name, with a space in between.
         """
-        full_name = "%s %s" % (self.first_name, self.last_name)
+        full_name = f"{self.first_name} {self.last_name}"
         return full_name.strip()
 
     def get_short_name(self):

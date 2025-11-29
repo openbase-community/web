@@ -1,5 +1,7 @@
-from decimal import Decimal
+from __future__ import annotations
+
 import uuid
+from decimal import Decimal
 
 from django.db import models
 from django.utils import timezone
@@ -13,12 +15,11 @@ UserOrTeamOwnershipMixin = get_user_or_team_ownership_mixin(
 
 
 class Account(UserOrTeamOwnershipMixin):
-
     balance = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal(0))
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     customer_id = models.CharField(
-        max_length=255, null=True, blank=True, help_text="Stripe customer ID"
+        max_length=255, blank=True, help_text="Stripe customer ID"
     )
     apple_uuid = models.UUIDField(blank=True, default="")  # type: ignore
 
@@ -28,7 +29,8 @@ class Account(UserOrTeamOwnershipMixin):
             return self.user_owner.email
         elif self.team_owner:
             return self.team_owner.email
-        raise ValueError("Account has no owner")
+        msg = "Account has no owner"
+        raise ValueError(msg)
 
     async def has_active_subscription(self):
         subscription = await Subscription.objects.filter(account=self).afirst()
@@ -42,7 +44,8 @@ class Account(UserOrTeamOwnershipMixin):
         self, force_insert=False, force_update=False, using=None, update_fields=None
     ):
         if self.user_owner and self.team_owner:
-            raise ValidationError("Account cannot have both user_owner and team_owner")
+            msg = "Account cannot have both user_owner and team_owner"
+            raise ValidationError(msg)
         if not self.apple_uuid:
             self.apple_uuid = uuid.uuid4()
         super().save(
@@ -62,8 +65,8 @@ class Subscription(models.Model):
     platform_data = models.JSONField(default=dict)
     is_sandbox = models.BooleanField(default=False)
 
-    def is_active(self):
-        return self.expiration_date > timezone.now()
-
     def __str__(self):
         return f"{self.account} subscription"
+
+    def is_active(self):
+        return self.expiration_date > timezone.now()

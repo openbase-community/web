@@ -80,3 +80,4 @@ required-imports = ["from __future__ import annotations"]
 "views.py" = ["PLC0415"]  # Import tasks locally
 "simulation.py" = ["S101"]  # Asserts allowed
 "*/tests/*" = ["S101", "T201", "INP001"]  # Asserts, prints allowed
+

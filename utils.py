@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 from functools import wraps
 from textwrap import dedent
 
@@ -74,3 +75,10 @@ def django_orm(func):
         func(*args, **kwargs)
 
     return wrapper
+
+
+def copy_osx(text: str) -> None:
+    """
+    Copy text to the clipboard on macOS.
+    """
+    subprocess.run(["pbcopy"], check=False, text=True, input=text)
