@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import datetime
-import uuid
+import contextlib
 
 import stripe
 from django.conf import settings
@@ -81,13 +80,14 @@ class User(AbstractBaseUser, PermissionsMixin):
         else:
             account = self.account
         if not account.customer_id:
-            customer = stripe.Customer.create(
-                email=self.email,
-                metadata={"user_id": self.id},
-            )
-            customer_id = customer.id
-            account.customer_id = customer_id
-            account.save()
+            with contextlib.suppress(stripe.error.AuthenticationError):
+                customer = stripe.Customer.create(
+                    email=self.email,
+                    metadata={"user_id": self.id},
+                )
+                customer_id = customer.id
+                account.customer_id = customer_id
+                account.save()
         return account
 
     async def aget_account(self):
