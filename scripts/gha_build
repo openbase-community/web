@@ -14,24 +14,25 @@ RELEASE_CMD='python3 manage.py migrate'
 mv ./Dockerfile ./Dockerfile.tmp
 echo "$(date)" > nocache.txt
 
-# Write app requirements to file
-echo "${APP_REQUIREMENTS}" > app_requirements_docker.txt
-
-# Define build configurations
-declare -A configs=(
-    ["web"]="${WEB_CMD}"
-    ["worker"]="${WORKER_CMD}"
-    ["beat"]="${BEAT_CMD}"
-    ["release"]="${RELEASE_CMD}"
-)
+# Write app requirements to file - ensure git+ prefix for GitHub URLs
+if [[ "${APP_REQUIREMENTS}" == https://github.com/* ]]; then
+    echo "git+${APP_REQUIREMENTS}" > app_requirements_docker.txt
+else
+    echo "${APP_REQUIREMENTS}" > app_requirements_docker.txt
+fi
 
 # Build each configuration
-for type in "${!configs[@]}"; do
+for type in web worker beat release; do
+    case "$type" in
+        web)     CMD="${WEB_CMD}" ;;
+        worker)  CMD="${WORKER_CMD}" ;;
+        beat)    CMD="${BEAT_CMD}" ;;
+        release) CMD="${RELEASE_CMD}" ;;
+    esac
+
     cat ./Dockerfile.tmp > ./Dockerfile
-    echo "CMD ${configs[$type]}" >> Dockerfile
-    docker buildx build --push -t "registry.heroku.com/${APP_NAME}/${type}:latest" \
+    echo "CMD ${CMD}" >> Dockerfile
+    docker buildx build --platform linux/amd64 --push -t "registry.heroku.com/${APP_NAME}/${type}:latest" \
         --build-arg GH_PAT="${GH_PAT}" \
-        --provenance false \
-        --cache-to "type=gha,mode=max,repository=openbase-community/web,ghtoken=${GH_PAT}" \
-        --cache-from type=gha .
+        --provenance false .
 done
