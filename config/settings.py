@@ -159,28 +159,48 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
-AWS_S3_CUSTOM_DOMAIN = os.environ["AWS_S3_CUSTOM_DOMAIN"]
-AWS_STORAGE_BUCKET_NAME = AWS_S3_CUSTOM_DOMAIN
+# AWS Configuration - optional
+AWS_S3_CUSTOM_DOMAIN = os.environ.get("AWS_S3_CUSTOM_DOMAIN", "")
+USE_S3 = bool(AWS_S3_CUSTOM_DOMAIN)
 
-AWS_DEFAULT_ACL = "public-read"
-AWS_S3_OBJECT_PARAMETERS = {
-    "CacheControl": "max-age=86400",
-}
-AWS_LOCATION = "static"  # subdirectory in S3 for static files
+if USE_S3:
+    # S3 settings when AWS_S3_CUSTOM_DOMAIN is provided
+    AWS_STORAGE_BUCKET_NAME = AWS_S3_CUSTOM_DOMAIN
+    AWS_DEFAULT_ACL = "public-read"
+    AWS_S3_OBJECT_PARAMETERS = {
+        "CacheControl": "max-age=86400",
+    }
+    AWS_LOCATION = "static"  # subdirectory in S3 for static files
 
-STATIC_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/"
+    STATIC_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/"
+    MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/media/"
 
-MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/media/"
+    # Django 4.2+ STORAGES configuration for S3
+    STORAGES = {
+        "default": {
+            "BACKEND": "config.storages.S3MediaStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        },
+    }
+else:
+    # Local storage when AWS_S3_CUSTOM_DOMAIN is not provided
+    STATIC_URL = "/static/"
+    STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# Django 4.2+ STORAGES configuration
-STORAGES = {
-    "default": {
-        "BACKEND": "config.storages.S3MediaStorage",
-    },
-    "staticfiles": {
-        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
-    },
-}
+    MEDIA_URL = "/media/"
+    MEDIA_ROOT = BASE_DIR / "media"
+
+    # Django 4.2+ STORAGES configuration for local storage
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    }
 
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
@@ -326,7 +346,9 @@ NOTIFICATIONS_SANDBOX = os.environ.get("NOTIFICATIONS_SANDBOX", "0") == "1"
 
 if not DEBUG:
     CSRF_TRUSTED_ORIGINS = [f"https://{domain}" for domain in ALLOWED_HOSTS]
-    CORS_ALLOWED_ORIGINS = [f"https://{AWS_S3_CUSTOM_DOMAIN}", *CSRF_TRUSTED_ORIGINS]
+    CORS_ALLOWED_ORIGINS = CSRF_TRUSTED_ORIGINS.copy()
+    if USE_S3:
+        CORS_ALLOWED_ORIGINS.insert(0, f"https://{AWS_S3_CUSTOM_DOMAIN}")
 else:
     CSRF_TRUSTED_ORIGINS = [
         "http://localhost:3000",
