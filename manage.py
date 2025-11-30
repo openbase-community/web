@@ -7,8 +7,6 @@ import os
 import sys
 from pathlib import Path
 
-import pretty_errors  # noqa: F401
-
 # Load .env file
 try:
     from dotenv import load_dotenv
