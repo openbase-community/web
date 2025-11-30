@@ -9,7 +9,7 @@ if [ $# -eq 0 ]; then
 fi
 
 APP_NAME="$1"
-TEMPLATE_APP="${2:-prod4}"
+TEMPLATE_APP="${2:-openbase}"
 
 # Create the app with container stack
 echo "Creating Heroku app: $APP_NAME"
