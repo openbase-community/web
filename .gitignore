@@ -1,3 +1,5 @@
+credentials.json
+token.json
 CLAUDE.md
 !scripts/build
 workspace_requirements.txt
