@@ -69,10 +69,10 @@ for app in get_package_apps():
         matched_prefix = None
         for pattern, pattern_prefix in url_prefixes.items():
             if pattern.endswith(".*") and app.startswith(pattern[:-2]):
-                matched_prefix = pattern_prefix
+                prefix = pattern_prefix.rstrip("/") + "/"
                 break
-
-        prefix = matched_prefix.rstrip("/") + "/" if matched_prefix else "api/"
+        else:
+            prefix = "api/" + app.split(".")[0].removesuffix("_api") + "/"
 
     urlpatterns.append(path(prefix, include(f"{app}.urls")))
 
