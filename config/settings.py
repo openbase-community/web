@@ -354,6 +354,7 @@ else:
         "http://localhost:3000",
         "http://0.0.0.0:8000",
         "http://localhost",
+        "http://localhost:82",
     ]
     # SESSION_COOKIE_DOMAIN = "localhost"
     # CSRF_COOKIE_DOMAIN = ".localhost"
@@ -361,6 +362,7 @@ else:
         "http://localhost:3000",
         "http://0.0.0.0:8000",
         "http://localhost",
+        "http://localhost:82",
     ]
 
 CORS_ALLOW_CREDENTIALS = True

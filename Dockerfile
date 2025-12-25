@@ -17,16 +17,21 @@ RUN python -m pip install -r requirements.txt
 
 ARG GH_PAT
 ENV GH_PAT=$GH_PAT
+ARG SKIP_APP_REQUIREMENTS=false
 COPY nocache.txt /tmp/nocache.txt
-COPY app_requirements_docker.txt .
+COPY app_requirements.txt .
 
-# Configure git and install site requirements
-RUN git config --global url."https://${GH_PAT}:x-oauth-basic@github.com/".insteadOf "https://github.com/" && \
-    pip install -r app_requirements_docker.txt && \
-    git config --global --unset url."https://${GH_PAT}:x-oauth-basic@github.com/".insteadOf
+# Configure git and install site requirements (skipped if SKIP_APP_REQUIREMENTS=true)
+RUN if [ "$SKIP_APP_REQUIREMENTS" = "true" ]; then \
+        echo "Skipping app_requirements.txt installation"; \
+    else \
+        git config --global url."https://${GH_PAT}:x-oauth-basic@github.com/".insteadOf "https://github.com/" && \
+        pip install -r app_requirements.txt && \
+        git config --global --unset url."https://${GH_PAT}:x-oauth-basic@github.com/".insteadOf; \
+    fi
 
-WORKDIR /app
-COPY . /app
+WORKDIR /app/web
+COPY . /app/web
 
 # Creates a non-root user with an explicit UID and adds permission to access the /app folder
 # For more info, please refer to https://aka.ms/vscode-docker-python-configure-containers

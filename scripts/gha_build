@@ -16,9 +16,9 @@ echo "$(date)" > nocache.txt
 
 # Write app requirements to file - ensure git+ prefix for GitHub URLs
 if [[ "${APP_REQUIREMENTS}" == https://github.com/* ]]; then
-    echo "git+${APP_REQUIREMENTS}" > app_requirements_docker.txt
+    echo "git+${APP_REQUIREMENTS}" > app_requirements.txt
 else
-    echo "${APP_REQUIREMENTS}" > app_requirements_docker.txt
+    echo "${APP_REQUIREMENTS}" > app_requirements.txt
 fi
 
 # Build each configuration

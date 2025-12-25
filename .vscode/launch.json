@@ -2,36 +2,50 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Django: Uvicorn",
-            "consoleName": "Django: Uvicorn",
+            "name": "Django: Web (Attach)",
+            "consoleName": "Django: Web",
             "type": "debugpy",
-            "request": "launch",
-            "module": "uvicorn",
-            "args": "config.asgi:application --host 0.0.0.0 --reload ${config:reloadFlags}",
+            "request": "attach",
+            "connect": {
+                "host": "localhost",
+                "port": 5678
+            },
+            "pathMappings": [
+                {
+                    "localRoot": "${workspaceFolder}/..",
+                    "remoteRoot": "/app"
+                }
+            ],
             "django": true,
-            "justMyCode": false,
-            "preLaunchTask": "Docker Compose Up"
+            "justMyCode": false
         },
         {
-            "name": "Django: TaskIQ",
-            "consoleName": "Django: TaskIQ",
+            "name": "Django: Worker (Attach)",
+            "consoleName": "Django: Worker",
             "type": "debugpy",
-            "request": "launch",
-            "module": "taskiq",
-            "args": "worker --log-level=INFO --reload config.taskiq_config:broker config.taskiq_tasks ${config:reloadFlags}",
+            "request": "attach",
+            "connect": {
+                "host": "localhost",
+                "port": 5679
+            },
+            "pathMappings": [
+                {
+                    "localRoot": "${workspaceFolder}",
+                    "remoteRoot": "/app"
+                }
+            ],
             "django": true,
             "justMyCode": false
         }
     ],
     "compounds": [
         {
-            "name": "Django",
+            "name": "Django (Attach All)",
             "configurations": [
-                "Django: Uvicorn",
-                "Django: TaskIQ"
+                "Django: Web (Attach)",
+                "Django: Worker (Attach)"
             ],
-            "stopAll": true,
-            "required": true
+            "stopAll": true
         }
     ]
 }

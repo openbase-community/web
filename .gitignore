@@ -2,8 +2,7 @@ credentials.json
 token.json
 CLAUDE.md
 !scripts/build
-workspace_requirements.txt
-app_requirements_docker.txt
+app_requirements.txt
 playground
 
 .vscode/settings.json
@@ -177,3 +176,4 @@ cython_debug/
 .idea/
 
 nginx/nginx.conf
+docker-compose.volumes.yml

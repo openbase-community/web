@@ -31,12 +31,15 @@ echo "Loading environment variables from .env file..."
 set -a
 source .env
 
-# Check for workspace_requirements.txt
-if [ ! -f "workspace_requirements.txt" ]; then
-    echo "Please create a workspace_requirements.txt file with the required Python packages."
-    echo "Press Enter once you have created the workspace_requirements.txt file to continue..."
+# Check for app_requirements.txt
+if [ ! -f "app_requirements.txt" ]; then
+    echo "Please create a app_requirements.txt file with the required Python packages."
+    echo "Press Enter once you have created the app_requirements.txt file to continue..."
     read -r
 fi
+
+# Generate docker-compose.volumes.yml from app_requirements.txt
+./scripts/generate-dev-compose.sh
 
 # Ensure .vscode directory exists
 mkdir -p .vscode

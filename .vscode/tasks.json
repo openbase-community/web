@@ -2,9 +2,45 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "Refresh Docker Compose Volumes",
+            "type": "shell",
+            "command": "./scripts/generate-docker-compose-volumes.sh",
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared",
+                "close": true
+            },
+            "problemMatcher": []
+        },
+        {
             "label": "Docker Compose Up",
             "type": "shell",
-            "command": "docker compose up -d",
+            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml up -d",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new",
+                "close": true
+            },
+            "dependsOn": [
+                "Refresh Docker Compose Volumes"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "Docker Compose Down",
+            "type": "shell",
+            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml down",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new",
+                "close": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Docker Compose Build",
+            "type": "shell",
+            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml build",
             "presentation": {
                 "reveal": "always",
                 "panel": "new",
