@@ -10,6 +10,6 @@ PROJECT_ROOT=$(pwd)
 docker compose build 
 
 # Install dependencies
-pip install -r workspace_requirements.txt
+pip install -r app_requirements.txt
 
 popd

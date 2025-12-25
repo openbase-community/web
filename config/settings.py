@@ -124,7 +124,6 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 DATABASES = {"default": dj_database_url.config()}
 DATABASES["default"]["CONN_MAX_AGE"] = 0
-DATABASES["default"]["PORT"] = 5434
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
@@ -300,9 +299,7 @@ AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
 
 AUTH_USER_MODEL = "users.User"
 
-REDIS_URL = os.environ["REDIS_URL"].replace(":6379", ":6381") + (
-    "?ssl_cert_reqs=none" if not DEBUG else ""
-)
+REDIS_URL = os.environ["REDIS_URL"] + ("?ssl_cert_reqs=none" if not DEBUG else "")
 REDIS_HOST = urlparse(REDIS_URL).hostname
 REDIS_PORT = urlparse(REDIS_URL).port
 
@@ -357,6 +354,7 @@ else:
         "http://localhost:3000",
         "http://0.0.0.0:8000",
         "http://localhost",
+        "http://localhost:82",
     ]
     # SESSION_COOKIE_DOMAIN = "localhost"
     # CSRF_COOKIE_DOMAIN = ".localhost"
@@ -364,6 +362,7 @@ else:
         "http://localhost:3000",
         "http://0.0.0.0:8000",
         "http://localhost",
+        "http://localhost:82",
     ]
 
 CORS_ALLOW_CREDENTIALS = True

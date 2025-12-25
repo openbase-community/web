@@ -22,8 +22,54 @@ services:
       context: ./nginx
       dockerfile: Dockerfile
     ports:
-      - 81:80
-      - 444:443
+      - 82:80
     environment:
-      - PROXY_TARGET=${PROXY_TARGET:-http://host.docker.internal:8000}
-      - FRONTEND_PROXY_TARGET=${FRONTEND_PROXY_TARGET:-http://host.docker.internal:8080}
+      - PROXY_TARGET=${PROXY_TARGET:-http://web:8002}
+      - FRONTEND_PROXY_TARGET=${FRONTEND_PROXY_TARGET:-http://host.docker.internal:8082}
+    depends_on:
+      - web
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - GH_PAT=${GH_PAT}
+        - SKIP_APP_REQUIREMENTS=true
+    ports:
+      - 5678:5678
+      - 8002:8002
+    env_file:
+      - .env
+    volumes:
+      - .:/app/web
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/appdata
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - db
+      - redis
+    entrypoint: ["bash", "/app/web/scripts/dev-entrypoint.sh"]
+    command: python -m debugpy --listen 0.0.0.0:5678 --wait-for-client -m uvicorn config.asgi:application --host 0.0.0.0 --port 8002 --reload
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - GH_PAT=${GH_PAT}
+        - SKIP_APP_REQUIREMENTS=true
+    ports:
+      - 5679:5679
+    env_file:
+      - .env
+    volumes:
+      - .:/app/web
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/appdata
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - db
+      - redis
+    entrypoint: ["bash", "/app/web/scripts/dev-entrypoint.sh"]
+    command: python -m debugpy --listen 0.0.0.0:5679 --wait-for-client -m taskiq worker --log-level=INFO config.taskiq_config:broker config.taskiq_tasks
