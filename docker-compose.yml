@@ -5,7 +5,8 @@ services:
       - 6379:6379
 
   db:
-    image: pgvector/pgvector:pg14
+    image: postgis/postgis:17-3.5 # If upgrade, change volume path
+    platform: linux/amd64
     volumes:
       - ../data/db:/var/lib/postgresql/data
     environment:
