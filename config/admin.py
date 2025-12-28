@@ -1,8 +1,14 @@
+from __future__ import annotations
+
 import inspect
+from typing import TYPE_CHECKING
 
 from django.contrib import admin
-from django.core.handlers.wsgi import WSGIRequest
+from django.contrib.gis.admin import GISModelAdmin
 from django.db import models
+
+if TYPE_CHECKING:
+    from django.core.handlers.wsgi import WSGIRequest
 
 
 class DynamicAdminSite(admin.AdminSite):
@@ -65,7 +71,7 @@ def auto_register_models(app_models):
 
     # Register each model with the admin
     for _, model_class in django_models:
-        admin.site.register(model_class)
+        admin.site.register(model_class, GISModelAdmin)
 
 
 # Instantiate your custom admin site
