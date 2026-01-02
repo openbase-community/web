@@ -48,7 +48,7 @@ services:
       - db
       - redis
     entrypoint: ["bash", "/app/web/scripts/dev-entrypoint.sh"]
-    command: python -m debugpy --listen 0.0.0.0:5678 --wait-for-client -m uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --reload
+    command: python -m debugpy --listen 0.0.0.0:5678 -m uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --reload ${RELOAD_FLAGS:-}
 
   worker:
     build:
@@ -70,4 +70,4 @@ services:
       - db
       - redis
     entrypoint: ["bash", "/app/web/scripts/dev-entrypoint.sh"]
-    command: python -m debugpy --listen 0.0.0.0:5678 --wait-for-client -m taskiq worker --log-level=INFO config.taskiq_config:broker config.taskiq_tasks
+    command: python -m debugpy --listen 0.0.0.0:5678 -m taskiq worker --log-level=DEBUG --reload ${RELOAD_FLAGS:-} config.taskiq_config:broker config.taskiq_tasks

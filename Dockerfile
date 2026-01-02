@@ -11,9 +11,14 @@ ENV PYTHONUNBUFFERED=1
 # Install requirements
 RUN apt-get update && apt-get install -y ffmpeg curl postgresql-client git
 
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
 # Install pip requirements
 COPY requirements.txt .
-RUN python -m pip install -r requirements.txt
+RUN uv pip install --system -r requirements.txt
+RUN uv pip install --system --no-deps git+https://github.com/taskiq-python/taskiq-redis#egg=taskiq-redis
+
 
 ARG GH_PAT
 ENV GH_PAT=$GH_PAT
@@ -26,7 +31,7 @@ RUN if [ "$SKIP_APP_REQUIREMENTS" = "true" ]; then \
         echo "Skipping app_requirements.txt installation"; \
     else \
         git config --global url."https://${GH_PAT}:x-oauth-basic@github.com/".insteadOf "https://github.com/" && \
-        pip install -r app_requirements.txt && \
+        uv pip install --system -r app_requirements.txt && \
         git config --global --unset url."https://${GH_PAT}:x-oauth-basic@github.com/".insteadOf; \
     fi
 
@@ -37,6 +42,4 @@ COPY . /app/web
 # For more info, please refer to https://aka.ms/vscode-docker-python-configure-containers
 RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /app
 USER appuser
-
-CMD gunicorn config.asgi:application --log-file - -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT
 

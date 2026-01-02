@@ -26,10 +26,7 @@
                 "env": {
                     "DB_PORT": "${config:docker.ports.db}",
                     "REDIS_PORT": "${config:docker.ports.redis}",
-                    "NGINX_PORT": "${config:docker.ports.nginx}",
-                    "WEB_DEBUG_PORT": "${config:docker.ports.webDebug}",
-                    "WEB_PORT": "${config:docker.ports.web}",
-                    "WORKER_DEBUG_PORT": "${config:docker.ports.workerDebug}"
+                    "NGINX_PORT": "${config:docker.ports.nginx}"
                 }
             },
             "dependsOn": [
@@ -40,17 +37,14 @@
         {
             "label": "Docker: Web",
             "type": "shell",
-            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml up -y --force-recreate --no-deps --no-log-prefix --attach web web",
+            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml up -y --no-deps --force-recreate --no-log-prefix --attach web web",
             "options": {
                 "env": {
                     "COMPOSE_MENU": "0",
                     "COMPOSE_EXPERIMENTAL": "0",
-                    "DB_PORT": "${config:docker.ports.db}",
-                    "REDIS_PORT": "${config:docker.ports.redis}",
-                    "NGINX_PORT": "${config:docker.ports.nginx}",
                     "WEB_DEBUG_PORT": "${config:docker.ports.webDebug}",
                     "WEB_PORT": "${config:docker.ports.web}",
-                    "WORKER_DEBUG_PORT": "${config:docker.ports.workerDebug}"
+                    "RELOAD_FLAGS": "${config:reloadFlags}"
                 }
             },
             "presentation": {
@@ -63,29 +57,25 @@
             "isBackground": true,
             "problemMatcher": {
                 "pattern": {
-                    "regexp": "^$"
+                    "regexp": "error"
                 },
                 "background": {
-                    "activeOnStart": true,
-                    "beginsPattern": "^.*$",
-                    "endsPattern": "App requirements installed"
+                    "activeOnStart": false,
+                    "beginsPattern": "Installing app requirements in editable mode",
+                    "endsPattern": "Application startup complete"
                 }
             }
         },
         {
             "label": "Docker: Worker",
             "type": "shell",
-            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml up -y --force-recreate --no-deps --no-log-prefix --attach worker worker",
+            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml up -y --no-deps --force-recreate --no-log-prefix --attach worker worker",
             "options": {
                 "env": {
                     "COMPOSE_MENU": "0",
                     "COMPOSE_EXPERIMENTAL": "0",
-                    "DB_PORT": "${config:docker.ports.db}",
-                    "REDIS_PORT": "${config:docker.ports.redis}",
-                    "NGINX_PORT": "${config:docker.ports.nginx}",
-                    "WEB_DEBUG_PORT": "${config:docker.ports.webDebug}",
-                    "WEB_PORT": "${config:docker.ports.web}",
-                    "WORKER_DEBUG_PORT": "${config:docker.ports.workerDebug}"
+                    "WORKER_DEBUG_PORT": "${config:docker.ports.workerDebug}",
+                    "RELOAD_FLAGS": "${config:reloadFlags}"
                 }
             },
             "presentation": {
@@ -98,12 +88,12 @@
             "isBackground": true,
             "problemMatcher": {
                 "pattern": {
-                    "regexp": "^$"
+                    "regexp": "error"
                 },
                 "background": {
-                    "activeOnStart": true,
-                    "beginsPattern": "^.*$",
-                    "endsPattern": "App requirements installed"
+                    "activeOnStart": false,
+                    "beginsPattern": "Installing app requirements in editable mode",
+                    "endsPattern": "receiver Listening started"
                 }
             }
         },
@@ -129,13 +119,31 @@
             "problemMatcher": []
         },
         {
+            "label": "Docker: Stop Web",
+            "type": "shell",
+            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml stop web && docker compose -f docker-compose.yml -f docker-compose.volumes.yml rm -f web",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new",
+                "close": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Docker: Stop Worker",
+            "type": "shell",
+            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml stop worker && docker compose -f docker-compose.yml -f docker-compose.volumes.yml rm -f worker",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new",
+                "close": true
+            },
+            "problemMatcher": []
+        },
+        {
             "label": "Make migrations",
             "type": "shell",
-            "command": "${command:python.interpreterPath}",
-            "args": [
-                "manage.py",
-                "makemigrations"
-            ],
+            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml run --rm web python manage.py makemigrations",
             "presentation": {
                 "reveal": "always",
                 "focus": true,
@@ -146,11 +154,7 @@
         {
             "label": "Migrate",
             "type": "shell",
-            "command": "${command:python.interpreterPath}",
-            "args": [
-                "manage.py",
-                "migrate"
-            ],
+            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml run --rm web python manage.py migrate",
             "presentation": {
                 "reveal": "always",
                 "focus": true,
@@ -161,11 +165,7 @@
         {
             "label": "Django shell",
             "type": "shell",
-            "command": "${command:python.interpreterPath}",
-            "args": [
-                "manage.py",
-                "shell"
-            ],
+            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml run --rm web python manage.py shell",
             "presentation": {
                 "reveal": "always",
                 "focus": true,
@@ -176,11 +176,7 @@
         {
             "label": "DB shell",
             "type": "shell",
-            "command": "${command:python.interpreterPath}",
-            "args": [
-                "manage.py",
-                "dbshell"
-            ],
+            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml run --rm web python manage.py dbshell",
             "presentation": {
                 "reveal": "always",
                 "focus": true,
@@ -191,12 +187,7 @@
         {
             "label": "Collect static",
             "type": "shell",
-            "command": "${command:python.interpreterPath}",
-            "args": [
-                "manage.py",
-                "collectstatic",
-                "--noinput"
-            ],
+            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml run --rm web python manage.py collectstatic --noinput",
             "presentation": {
                 "reveal": "always",
                 "focus": true,

@@ -7,7 +7,7 @@
             "request": "attach",
             "connect": {
                 "host": "localhost",
-                "port": 5678
+                "port": "${config:docker.ports.webDebug}"
             },
             "pathMappings": [
                 {
@@ -17,7 +17,8 @@
             ],
             "django": true,
             "justMyCode": false,
-            "preLaunchTask": "Docker: Web"
+            "preLaunchTask": "Docker: Web",
+            "postDebugTask": "Docker: Down Web"
         },
         {
             "name": "Backend: Worker",
@@ -25,7 +26,7 @@
             "request": "attach",
             "connect": {
                 "host": "localhost",
-                "port": 5679
+                "port": "${config:docker.ports.workerDebug}"
             },
             "pathMappings": [
                 {
@@ -35,7 +36,8 @@
             ],
             "django": true,
             "justMyCode": false,
-            "preLaunchTask": "Docker: Worker"
+            "preLaunchTask": "Docker: Worker",
+            "postDebugTask": "Docker: Down Worker"
         }
     ],
     "compounds": [

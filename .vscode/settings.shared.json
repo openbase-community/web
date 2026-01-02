@@ -3,5 +3,11 @@
   "python.testing.pytestArgs": ["."],
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true,
-  "python.defaultInterpreterPath": "${workspaceFolder}/venv/bin/python"
+  "python.defaultInterpreterPath": "${workspaceFolder}/venv/bin/python",
+  "docker.ports.db": 5432,
+  "docker.ports.redis": 6379,
+  "docker.ports.nginx": 80,
+  "docker.ports.webDebug": 5678,
+  "docker.ports.web": 8000,
+  "docker.ports.workerDebug": 5679
 }
