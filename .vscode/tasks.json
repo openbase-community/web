@@ -2,7 +2,8 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Refresh Docker Compose Volumes",
+            "label": "Docker: Generate volumes file",
+            "detail": "Generate the docker-compose.volumes.yml file that specifies the app requirements for editable installs",
             "type": "shell",
             "command": "./scripts/generate-docker-compose-volumes.sh",
             "presentation": {
@@ -13,34 +14,113 @@
             "problemMatcher": []
         },
         {
-            "label": "Docker Compose Up",
+            "label": "Docker: Start background services",
             "type": "shell",
-            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml up -d",
+            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml up -d nginx redis db",
             "presentation": {
                 "reveal": "always",
                 "panel": "new",
                 "close": true
             },
+            "options": {
+                "env": {
+                    "DB_PORT": "${config:docker.ports.db}",
+                    "REDIS_PORT": "${config:docker.ports.redis}",
+                    "NGINX_PORT": "${config:docker.ports.nginx}",
+                    "WEB_DEBUG_PORT": "${config:docker.ports.webDebug}",
+                    "WEB_PORT": "${config:docker.ports.web}",
+                    "WORKER_DEBUG_PORT": "${config:docker.ports.workerDebug}"
+                }
+            },
             "dependsOn": [
-                "Refresh Docker Compose Volumes"
+                "Docker: Generate volumes file"
             ],
             "problemMatcher": []
         },
         {
-            "label": "Docker Compose Down",
+            "label": "Docker: Web",
             "type": "shell",
-            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml down",
+            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml up -y --force-recreate --no-deps --no-log-prefix --attach web web",
+            "options": {
+                "env": {
+                    "COMPOSE_MENU": "0",
+                    "COMPOSE_EXPERIMENTAL": "0",
+                    "DB_PORT": "${config:docker.ports.db}",
+                    "REDIS_PORT": "${config:docker.ports.redis}",
+                    "NGINX_PORT": "${config:docker.ports.nginx}",
+                    "WEB_DEBUG_PORT": "${config:docker.ports.webDebug}",
+                    "WEB_PORT": "${config:docker.ports.web}",
+                    "WORKER_DEBUG_PORT": "${config:docker.ports.workerDebug}"
+                }
+            },
             "presentation": {
                 "reveal": "always",
-                "panel": "new",
-                "close": true
+                "panel": "dedicated"
             },
-            "problemMatcher": []
+            "dependsOn": [
+                "Docker: Start background services"
+            ],
+            "isBackground": true,
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "^$"
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^.*$",
+                    "endsPattern": "App requirements installed"
+                }
+            }
         },
         {
-            "label": "Docker Compose Build",
+            "label": "Docker: Worker",
+            "type": "shell",
+            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml up -y --force-recreate --no-deps --no-log-prefix --attach worker worker",
+            "options": {
+                "env": {
+                    "COMPOSE_MENU": "0",
+                    "COMPOSE_EXPERIMENTAL": "0",
+                    "DB_PORT": "${config:docker.ports.db}",
+                    "REDIS_PORT": "${config:docker.ports.redis}",
+                    "NGINX_PORT": "${config:docker.ports.nginx}",
+                    "WEB_DEBUG_PORT": "${config:docker.ports.webDebug}",
+                    "WEB_PORT": "${config:docker.ports.web}",
+                    "WORKER_DEBUG_PORT": "${config:docker.ports.workerDebug}"
+                }
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "dependsOn": [
+                "Docker: Start background services"
+            ],
+            "isBackground": true,
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "^$"
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^.*$",
+                    "endsPattern": "App requirements installed"
+                }
+            }
+        },
+        {
+            "label": "Docker: Build",
             "type": "shell",
             "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml build",
+            "options": {
+                "env": {
+                    "DB_PORT": "${config:docker.ports.db}",
+                    "REDIS_PORT": "${config:docker.ports.redis}",
+                    "NGINX_PORT": "${config:docker.ports.nginx}",
+                    "WEB_DEBUG_PORT": "${config:docker.ports.webDebug}",
+                    "WEB_PORT": "${config:docker.ports.web}",
+                    "WORKER_DEBUG_PORT": "${config:docker.ports.workerDebug}"
+                }
+            },
             "presentation": {
                 "reveal": "always",
                 "panel": "new",
@@ -79,7 +159,7 @@
             "problemMatcher": []
         },
         {
-            "label": "Shell",
+            "label": "Django shell",
             "type": "shell",
             "command": "${command:python.interpreterPath}",
             "args": [

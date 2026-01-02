@@ -2,8 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Django: Web (Attach)",
-            "consoleName": "Django: Web",
+            "name": "Backend: Web",
             "type": "debugpy",
             "request": "attach",
             "connect": {
@@ -17,11 +16,11 @@
                 }
             ],
             "django": true,
-            "justMyCode": false
+            "justMyCode": false,
+            "preLaunchTask": "Docker: Web"
         },
         {
-            "name": "Django: Worker (Attach)",
-            "consoleName": "Django: Worker",
+            "name": "Backend: Worker",
             "type": "debugpy",
             "request": "attach",
             "connect": {
@@ -35,15 +34,16 @@
                 }
             ],
             "django": true,
-            "justMyCode": false
+            "justMyCode": false,
+            "preLaunchTask": "Docker: Worker"
         }
     ],
     "compounds": [
         {
-            "name": "Django (Attach All)",
+            "name": "Backend",
             "configurations": [
-                "Django: Web (Attach)",
-                "Django: Worker (Attach)"
+                "Backend: Web",
+                "Backend: Worker"
             ],
             "stopAll": true
         }

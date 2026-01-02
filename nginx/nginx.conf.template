@@ -1,20 +1,27 @@
 events {}
 
 http {
+    # Docker embedded DNS resolver (inside containers)
+    resolver 127.0.0.11 valid=10s ipv6=off;
+
     server {
         listen 80;
 
         client_max_body_size 100M;
 
         location ~ ^/(api|admin|accounts|ws|_allauth|ml)/ {
-            proxy_pass ${PROXY_TARGET};
+            # Use a variable so nginx resolves via the resolver (and re-resolves periodically)
+            set $api_upstream ${PROXY_TARGET};
+            proxy_pass $api_upstream;
+
             proxy_http_version  1.1;
             proxy_cache_bypass  $http_upgrade;
 
             proxy_set_header Upgrade           $http_upgrade;
             proxy_set_header Connection        "Upgrade";
             proxy_set_header Host              $host;
-            proxy_set_header X-Real-IP         $upstream_addr;
+
+            proxy_set_header X-Real-IP         $remote_addr;
             proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
             proxy_set_header X-Forwarded-Host  $host;
@@ -22,14 +29,20 @@ http {
         }
 
         location / {
-            proxy_pass ${FRONTEND_PROXY_TARGET};
+            set $fe_upstream ${FRONTEND_PROXY_TARGET};
+            proxy_pass $fe_upstream;
+
             proxy_http_version  1.1;
             proxy_cache_bypass  $http_upgrade;
             proxy_ssl_server_name on;
             proxy_set_header Upgrade           $http_upgrade;
             proxy_set_header Connection        "Upgrade";
+
+            # keep your behavior if you intentionally want Host=localhost;
+            # otherwise consider `proxy_set_header Host $host;`
             proxy_set_header Host              localhost;
-            proxy_set_header X-Real-IP         $upstream_addr;
+
+            proxy_set_header X-Real-IP         $remote_addr;
             proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
             proxy_set_header X-Forwarded-Port  $server_port;

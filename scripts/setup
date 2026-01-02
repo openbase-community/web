@@ -95,7 +95,7 @@ from django.contrib.sites.models import Site
 from sites.models import SiteAttributes
 Site.objects.update_or_create(
     id=1,
-    defaults={'name': 'localhost', 'domain': '0.0.0.0:8000'}
+    defaults={'name': 'web', 'domain': 'web'}
 )
 Site.objects.update_or_create(
     id=2,
