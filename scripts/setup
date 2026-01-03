@@ -26,20 +26,12 @@ if [ ! -e ".env" ]; then
     read -r
 fi
 
-# Load environment variables from .env file
-echo "Loading environment variables from .env file..."
-set -a
-source .env
-
 # Check for app_requirements.txt
 if [ ! -f "app_requirements.txt" ]; then
     echo "Please create a app_requirements.txt file with the required Python packages."
     echo "Press Enter once you have created the app_requirements.txt file to continue..."
     read -r
 fi
-
-# Generate docker-compose.volumes.yml from app_requirements.txt
-./scripts/generate-dev-compose.sh
 
 # Ensure .vscode directory exists
 mkdir -p .vscode
@@ -50,8 +42,8 @@ if [ ! -f "$VSCODE_SETTINGS" ]; then
     echo "{}" > "$VSCODE_SETTINGS"
 fi
 
-# Build the docker images
-./scripts/build
+# Install dependencies
+pip install -r app_requirements.txt
 
 # Spin up the database
 docker compose up -d db

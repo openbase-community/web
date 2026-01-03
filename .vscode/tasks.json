@@ -143,7 +143,7 @@
         {
             "label": "Make migrations",
             "type": "shell",
-            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml run --rm web python manage.py makemigrations",
+            "command": "python manage.py makemigrations",
             "presentation": {
                 "reveal": "always",
                 "focus": true,
@@ -154,7 +154,7 @@
         {
             "label": "Migrate",
             "type": "shell",
-            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml run --rm web python manage.py migrate",
+            "command": "python manage.py migrate",
             "presentation": {
                 "reveal": "always",
                 "focus": true,
@@ -165,7 +165,7 @@
         {
             "label": "Django shell",
             "type": "shell",
-            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml run --rm web python manage.py shell",
+            "command": "python manage.py shell",
             "presentation": {
                 "reveal": "always",
                 "focus": true,
@@ -176,7 +176,7 @@
         {
             "label": "DB shell",
             "type": "shell",
-            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml run --rm web python manage.py dbshell",
+            "command": "python manage.py dbshell",
             "presentation": {
                 "reveal": "always",
                 "focus": true,
@@ -187,7 +187,7 @@
         {
             "label": "Collect static",
             "type": "shell",
-            "command": "docker compose -f docker-compose.yml -f docker-compose.volumes.yml run --rm web python manage.py collectstatic --noinput",
+            "command": "python manage.py collectstatic --noinput",
             "presentation": {
                 "reveal": "always",
                 "focus": true,

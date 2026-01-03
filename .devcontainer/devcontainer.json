@@ -1,0 +1,23 @@
+{
+    "name": "Python 3",
+    // Use docker-compose for the dev container; the compose file lives in ../web
+    "dockerComposeFile": "../web/docker-compose.yml",
+    "service": "devcontainer",
+    "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+    // Configure tool-specific properties.
+    "features": {
+        "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+    },
+    "runArgs": [
+        "--volume=/var/run/docker.sock:/var/run/docker.sock"
+    ],
+    "customizations": {
+        // Configure properties specific to VS Code.
+        "vscode": {
+            "settings": {},
+            "extensions": [
+                "streetsidesoftware.code-spell-checker"
+            ]
+        }
+    }
+}

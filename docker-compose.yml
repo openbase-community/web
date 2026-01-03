@@ -1,5 +1,3 @@
-name: openbase-web
-
 services:
   redis:
     image: redis
@@ -71,3 +69,15 @@ services:
       - redis
     entrypoint: ["bash", "/app/web/scripts/dev-entrypoint.sh"]
     command: python -m debugpy --listen 0.0.0.0:5678 -m taskiq worker --log-level=DEBUG --reload ${RELOAD_FLAGS:-} config.taskiq_config:broker config.taskiq_tasks
+
+  # VS Code Dev Container - separate from web/worker to avoid install pollution
+  devcontainer:
+    build:
+      context: .
+      dockerfile: Dockerfile.devcontainer
+    env_file:
+      - .env
+    volumes:
+      - ../..:/workspaces:cached
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: sleep infinity

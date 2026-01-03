@@ -1,0 +1,26 @@
+FROM mcr.microsoft.com/devcontainers/python:3.13-bookworm
+
+# Keeps Python from generating .pyc files in the container
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Turns off buffering for easier container logging
+ENV PYTHONUNBUFFERED=1
+
+# Install system dependencies including Docker CLI
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Install pip requirements
+COPY requirements.txt .
+RUN uv pip install --system -r requirements.txt
+RUN uv pip install --system --no-deps git+https://github.com/taskiq-python/taskiq-redis#egg=taskiq-redis
+
+# Install debugpy for development
+RUN uv pip install --system debugpy
+
+
