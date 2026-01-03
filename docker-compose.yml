@@ -7,7 +7,7 @@ services:
   db:
     image: pgvector/pgvector:pg14
     volumes:
-      - ../data/db:/var/lib/postgresql/data
+      - ${LOCAL_WORKSPACE_FOLDER:-..}/data/db:/var/lib/postgresql/data
     environment:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_USER=postgres
@@ -38,7 +38,7 @@ services:
     env_file:
       - .env
     volumes:
-      - .:/app/web
+      - ${LOCAL_WORKSPACE_FOLDER:-..}/web:/app/web
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/appdata
       - REDIS_URL=redis://redis:6379
@@ -60,7 +60,7 @@ services:
     env_file:
       - .env
     volumes:
-      - .:/app/web
+      - ${LOCAL_WORKSPACE_FOLDER:-..}/web:/app/web
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/appdata
       - REDIS_URL=redis://redis:6379
@@ -79,5 +79,6 @@ services:
       - .env
     volumes:
       - ../..:/workspaces:cached
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker-host.sock
+    entrypoint: /usr/local/share/docker-init.sh
     command: sleep infinity

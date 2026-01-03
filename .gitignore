@@ -178,3 +178,7 @@ cython_debug/
 nginx/nginx.conf
 docker-compose.volumes.yml
 .pip-cache/
+.uv-cache
+
+# macOS
+.DS_Store

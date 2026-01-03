@@ -1,7 +1,7 @@
 {
     "name": "Python 3",
     // Use docker-compose for the dev container; the compose file lives in ../web
-    "dockerComposeFile": "../web/docker-compose.yml",
+    "dockerComposeFile": "../docker-compose.yml",
     "service": "devcontainer",
     "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
     // Configure tool-specific properties.

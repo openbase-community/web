@@ -19,7 +19,6 @@ COPY requirements.txt .
 RUN uv pip install --system -r requirements.txt
 RUN uv pip install --system --no-deps git+https://github.com/taskiq-python/taskiq-redis#egg=taskiq-redis
 
-
 ARG GH_PAT
 ENV GH_PAT=$GH_PAT
 ARG SKIP_APP_REQUIREMENTS=false

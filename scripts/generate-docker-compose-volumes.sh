@@ -33,7 +33,7 @@ while IFS= read -r line || [ -n "$line" ]; do
     pkg_name=$(basename "$pkg_path")
 
     # Map /app/pkg-name to ../pkg-name for volume mount
-    echo "  - ../$pkg_name:$pkg_path" >> "$OUTPUT_FILE"
+    echo "  - ${LOCAL_WORKSPACE_FOLDER:-..}/$pkg_name:/app/web/${pkg_path}" >> "$OUTPUT_FILE"
 done < "$APP_REQUIREMENTS"
 
 # Add rest of the file

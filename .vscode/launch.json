@@ -6,8 +6,8 @@
             "type": "debugpy",
             "request": "attach",
             "connect": {
-                "host": "localhost",
-                "port": "${config:docker.ports.webDebug}"
+                "host": "web",
+                "port": "5678"
             },
             "pathMappings": [
                 {
@@ -25,8 +25,8 @@
             "type": "debugpy",
             "request": "attach",
             "connect": {
-                "host": "localhost",
-                "port": "${config:docker.ports.workerDebug}"
+                "host": "worker",
+                "port": "5678"
             },
             "pathMappings": [
                 {

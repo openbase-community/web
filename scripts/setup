@@ -6,25 +6,7 @@ set -euo pipefail
 pushd "$(dirname "$0")/.."
 PROJECT_ROOT=$(pwd)
 
-# Create virtual environment if it doesn't exist
-if [ ! -d "venv" ]; then
-    python3 -m venv venv
-fi
-
-# Activate virtual environment if not already activated
-if [ -z "${VIRTUAL_ENV-}" ]; then
-    source venv/bin/activate
-fi
-
-# Install project dependencies
-pip install -r requirements.txt
-
-# Check for .env file and prompt user if it doesn't exist
-if [ ! -e ".env" ]; then
-    echo "Please add an .env file in the web/ directory with required environment variables."
-    echo "Press Enter once you have created the web/.env file to continue..."
-    read -r
-fi
+uv sync
 
 # Check for app_requirements.txt
 if [ ! -f "app_requirements.txt" ]; then
@@ -43,14 +25,7 @@ if [ ! -f "$VSCODE_SETTINGS" ]; then
 fi
 
 # Install dependencies
-pip install -r app_requirements.txt
-
-# Spin up the database
-docker compose up -d db
-
-# Wait for the database to be ready
-echo "Waiting for the database to be ready..."
-sleep 5
+uv pip install -r app_requirements.txt
 
 # Run database migrations
 echo "Running database migrations..."
