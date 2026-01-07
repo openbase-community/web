@@ -354,13 +354,15 @@ else:
         "http://localhost:3000",
         "http://0.0.0.0:8000",
         "http://localhost",
+        "http://localhost:8080",
+        "http://localhost:8081",
     ]
-    # SESSION_COOKIE_DOMAIN = "localhost"
-    # CSRF_COOKIE_DOMAIN = ".localhost"
     CORS_ALLOWED_ORIGINS = [
         "http://localhost:3000",
         "http://0.0.0.0:8000",
         "http://localhost",
+        "http://localhost:8080",
+        "http://localhost:8081",
     ]
 
 CORS_ALLOW_CREDENTIALS = True
