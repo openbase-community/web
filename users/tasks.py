@@ -45,7 +45,7 @@ def send_sms(message, to_number):
 
 
 @broker.task
-async def send_apn(user_id, message):
+async def send_apn(user_id, message, data: dict | None = None):
     user = await User.objects.aget(id=user_id)
     token_instance = await UserAPNSToken.objects.filter(user=user).afirst()
     if not token_instance:
@@ -81,6 +81,9 @@ async def send_apn(user_id, message):
             "sound": "default",
         },
     }
+    # Add custom data to payload if provided
+    if data:
+        payload.update(data)
     # Send the notification
     async with httpx.AsyncClient(http2=True) as client:
         response = await client.post(apns_url, json=payload, headers=request_headers)

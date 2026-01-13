@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import logging
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import TYPE_CHECKING
 
 import pytz
 import stripe
@@ -9,16 +11,11 @@ from appstoreserverlibrary.api_client import (
     AppStoreServerAPIClient,
     GetTransactionHistoryVersion,
 )
-from appstoreserverlibrary.models import Data
 from appstoreserverlibrary.models.Environment import Environment
-from appstoreserverlibrary.models.HistoryResponse import HistoryResponse
 from appstoreserverlibrary.models.JWSTransactionDecodedPayload import (
     JWSTransactionDecodedPayload,
 )
 from appstoreserverlibrary.models.NotificationTypeV2 import NotificationTypeV2
-from appstoreserverlibrary.models.ResponseBodyV2DecodedPayload import (
-    ResponseBodyV2DecodedPayload,
-)
 from appstoreserverlibrary.models.TransactionHistoryRequest import (
     Order,
     ProductType,
@@ -40,6 +37,13 @@ from rest_framework.views import APIView
 
 from payment import serializers
 from payment.models import Account, Subscription
+
+if TYPE_CHECKING:
+    from appstoreserverlibrary.models import Data
+    from appstoreserverlibrary.models.HistoryResponse import HistoryResponse
+    from appstoreserverlibrary.models.ResponseBodyV2DecodedPayload import (
+        ResponseBodyV2DecodedPayload,
+    )
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -70,7 +74,7 @@ class AddValueView(generics.CreateAPIView):
             return JsonResponse({"success": True})
         except stripe.error.CardError as e:
             logger.error(
-                f"Payment failed: User={request.user.id}, Amount={amount}, Error={str(e)}"
+                f"Payment failed: User={request.user.id}, Amount={amount}, Error={e!s}"
             )
             return JsonResponse({"error": e.user_message}, status=400)
 
@@ -257,7 +261,7 @@ def get_apple_storekit_api_clients():
 
 def get_transaction_history(
     transaction_id: str,
-    revision: Optional[str],
+    revision: str | None,
     transaction_history_request: TransactionHistoryRequest,
     version: GetTransactionHistoryVersion = GetTransactionHistoryVersion.V1,
 ):
@@ -283,7 +287,7 @@ class AppleSubscription(APIView):
             )
 
         transactions = []
-        response: Optional[HistoryResponse] = None
+        response: HistoryResponse | None = None
         request: TransactionHistoryRequest = TransactionHistoryRequest(
             sort=Order.ASCENDING,
             revoked=False,
@@ -299,7 +303,8 @@ class AppleSubscription(APIView):
 
         if not transactions:
             logger.error(f"No transactions found for transaction_id={transaction_id}")
-            raise ValidationError("No transactions found")
+            msg = "No transactions found"
+            raise ValidationError(msg)
         last_transaction = transactions[-1]
         last_transaction_info = verify_and_decode_signed_transaction(last_transaction)
         _ = get_create_apple_subscription(last_transaction_info)
@@ -333,7 +338,7 @@ class StripeCustomerPortalView(APIView):
             )
             return Response({"url": session.url})
         except stripe.error.StripeError as e:
-            logger.error(f"Stripe portal session creation failed: {str(e)}")
+            logger.error(f"Stripe portal session creation failed: {e!s}")
             return Response(
                 {"error": "Failed to create portal session"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -380,7 +385,7 @@ class StripeCheckoutView(APIView):
             )
             return Response({"url": session.url})
         except stripe.error.StripeError as e:
-            logger.error(f"Stripe checkout session creation failed: {str(e)}")
+            logger.error(f"Stripe checkout session creation failed: {e!s}")
             return Response(
                 {"error": "Failed to create checkout session"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -399,10 +404,10 @@ class StripeWebhookView(APIView):
                 payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
             )
         except ValueError as e:
-            logger.error(f"Invalid payload: {str(e)}")
+            logger.error(f"Invalid payload: {e!s}")
             return Response(status=status.HTTP_400_BAD_REQUEST)
         except stripe.error.SignatureVerificationError as e:
-            logger.error(f"Invalid signature: {str(e)}")
+            logger.error(f"Invalid signature: {e!s}")
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
         # Handle subscription events
