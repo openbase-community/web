@@ -13,7 +13,7 @@ BEAT_CMD="taskiq scheduler --log-level=INFO config.taskiq_config:scheduler confi
 RELEASE_CMD='python3 manage.py migrate'
 
 mv ./Dockerfile ./Dockerfile.tmp
-"$(date)" > nocache.txt
+date > nocache.txt
 
 # Write app requirements to file - ensure git+ prefix for GitHub URLs
 if [[ "${APP_REQUIREMENTS}" == https://github.com/* ]]; then
