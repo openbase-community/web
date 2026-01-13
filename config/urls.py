@@ -51,7 +51,6 @@ urlpatterns = [
     path("api/", include("users.urls")),
     path("api/", include("contact.urls")),
     path("api/", include("payment.urls")),
-    path("api/", include("agent.urls")),  # Add agents app URLs
 ]
 
 extra_urls = allauth.headless.urls
