@@ -1,54 +1,46 @@
+from __future__ import annotations
+
 import os
+from datetime import timedelta
 
-import requests
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
+from livekit import api as livekit_api
+from rest_framework import serializers
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
-# Create your views here.
 
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def create_livekit_room_token(request):
+    """Create a LiveKit room token for the authenticated user"""
+    api_key = os.environ.get("LIVEKIT_API_KEY")
+    api_secret = os.environ.get("LIVEKIT_API_SECRET")
 
-@csrf_exempt
-@require_http_methods(["GET"])
-def generate_token(request):
-    api_key = os.getenv("OPENAI_API_KEY")
-
-    if not api_key:
-        return JsonResponse(
-            {
-                "error": "OpenAI API key not configured. Please set OPENAI_API_KEY environment variable.",
-            },
-            status=500,
+    if not api_key or not api_secret:
+        raise serializers.ValidationError(
+            {"detail": "LiveKit credentials not configured"}
         )
 
-    try:
-        response = requests.post(
-            "https://api.openai.com/v1/realtime/sessions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": "gpt-4o-realtime-preview-2024-12-17",
-                "voice": "alloy",
-            },
-        )
+    room_name = request.data.get("room_name")
+    if not room_name:
+        raise serializers.ValidationError({"room_name": "Room name is required"})
 
-        if not response.ok:
-            return JsonResponse(
-                {
-                    "error": "Failed to create OpenAI session",
-                    "details": response.text,
-                },
-                status=response.status_code,
+    token = (
+        livekit_api.AccessToken(api_key=api_key, api_secret=api_secret)
+        .with_identity(request.user.email)
+        .with_name(f"{request.user.first_name} {request.user.last_name}".strip())
+        .with_grants(
+            livekit_api.VideoGrants(
+                room_join=True,
+                room=room_name,
+                can_publish=True,
+                can_subscribe=True,
+                can_publish_data=True,
             )
-
-        return JsonResponse(response.json())
-
-    except Exception:
-        return JsonResponse(
-            {
-                "error": "Failed to generate token",
-            },
-            status=500,
         )
+        .with_ttl(timedelta(hours=1))
+        .to_jwt()
+    )
+
+    return Response({"token": token, "room_name": room_name})

@@ -47,8 +47,11 @@ if [ ! -f "$VSCODE_SETTINGS" ]; then
     echo "{}" > "$VSCODE_SETTINGS"
 fi
 
-# Build the docker images
-./scripts/build
+# Run docker compose build
+docker compose build 
+
+# Install dependencies
+pip install -r workspace_requirements.txt
 
 # Spin up the database
 docker compose up -d db
