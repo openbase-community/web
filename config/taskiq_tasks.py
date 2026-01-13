@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import logging
 import pkgutil
 from importlib import import_module
 
 from config.app_packages import get_package_apps
+from users import tasks  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

@@ -268,7 +268,7 @@ LOGGING = {
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        # "rest_framework.authentication.TokenAuthentication",
+        "rest_framework.authentication.TokenAuthentication",
         "rest_framework.authentication.SessionAuthentication",
         "allauth.headless.contrib.rest_framework.authentication.XSessionTokenAuthentication",
     ],
@@ -339,7 +339,9 @@ OWNED_TWILIO_NUMBER = os.environ.get("OWNED_TWILIO_NUMBER")
 
 NOTIFICATIONS_APPLE_TEAM_ID = os.environ.get("NOTIFICATIONS_APPLE_TEAM_ID")
 NOTIFICATIONS_APPLE_AUTH_KEY_ID = os.environ.get("NOTIFICATIONS_APPLE_AUTH_KEY_ID")
-NOTIFICATIONS_APPLE_P8_CONTENTS = os.environ.get("NOTIFICATIONS_APPLE_P8_CONTENTS")
+NOTIFICATIONS_APPLE_P8_CONTENTS = os.environ.get(
+    "NOTIFICATIONS_APPLE_P8_CONTENTS"
+).replace("\\n", "\n")
 
 SLEEP_TERM = "sleeps-no-notify"
 NOTIFICATIONS_SANDBOX = os.environ.get("NOTIFICATIONS_SANDBOX", "0") == "1"
