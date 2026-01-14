@@ -39,3 +39,4 @@ for type in web worker beat release; do
 done
 
 mv Dockerfile.tmp Dockerfile
+rm nocache.txt
