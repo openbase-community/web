@@ -266,10 +266,11 @@ LOGGING = {
     },
 }
 
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.TokenAuthentication",
         "rest_framework.authentication.SessionAuthentication",
+        "allauth.headless.contrib.rest_framework.authentication.JWTTokenAuthentication",
         "allauth.headless.contrib.rest_framework.authentication.XSessionTokenAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
@@ -416,6 +417,12 @@ HEADLESS_ADAPTER = "config.allauth_adapter.HeadlessAdapter"
 
 HEADLESS_ENABLED = True
 HEADLESS_ONLY = True
+HEADLESS_TOKEN_STRATEGY = "allauth.headless.tokens.strategies.jwt.JWTTokenStrategy"  # noqa: S105
+HEADLESS_JWT_PRIVATE_KEY = os.environ.get("HEADLESS_JWT_PRIVATE_KEY", "").replace(
+    "\\n", "\n"
+)
+HEADLESS_JWT_ACCESS_TOKEN_EXPIRES_IN = 300  # 5 minutes
+HEADLESS_JWT_REFRESH_TOKEN_EXPIRES_IN = 86400 * 7  # 7 days
 HEADLESS_FRONTEND_URLS = {
     "account_confirm_email": "/account/verify-email/{key}",
     "account_reset_password": "/account/password/reset",
