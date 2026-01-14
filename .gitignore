@@ -6,6 +6,7 @@ workspace_requirements.txt
 app_requirements_docker.txt
 playground
 nocache.txt
+.pip-cache/
 
 .vscode/settings.json
 .vscode/tasks.json
