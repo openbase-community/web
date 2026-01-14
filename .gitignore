@@ -5,6 +5,7 @@ CLAUDE.md
 workspace_requirements.txt
 app_requirements_docker.txt
 playground
+nocache.txt
 
 .vscode/settings.json
 .vscode/tasks.json
