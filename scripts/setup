@@ -4,7 +4,6 @@ set -euo pipefail
 
 # Navigate to the project root directory (parent of scripts)
 pushd "$(dirname "$0")/.."
-PROJECT_ROOT=$(pwd)
 
 # Create virtual environment if it doesn't exist
 if [ ! -d "venv" ]; then
