@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import uuid
 from datetime import timedelta
@@ -11,6 +12,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
 from .serializers import LiveKitRoomTokenSerializer
+
+logger = logging.getLogger(__name__)
 
 
 @api_view(["POST"])
@@ -36,7 +39,14 @@ def create_livekit_room_token(request):
 
     room_name = f"room-{uuid.uuid4().hex[:12]}"
 
+    thread_id = input_serializer.validated_data.get("thread_id")
     agent_metadata = {"graph_name": graph_name}
+    if thread_id:
+        agent_metadata["thread_id"] = thread_id
+
+    logger.info(
+        f"[LiveKit Token] user={request.user.email} graph={graph_name} agent={livekit_dispatch_agent_name} thread_id={thread_id} metadata={json.dumps(agent_metadata)}"
+    )
 
     token = (
         livekit_api.AccessToken(api_key=api_key, api_secret=api_secret)
