@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     "contact.apps.ContactConfig",
     "payment.apps.PaymentConfig",
     "teams.apps.TeamsConfig",
+    "agent.apps.AgentConfig",
     *get_package_apps(),
 ]
 
