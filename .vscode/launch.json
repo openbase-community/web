@@ -30,8 +30,7 @@
                 "Django: Uvicorn",
                 "Django: TaskIQ"
             ],
-            "stopAll": true,
-            "required": true
+            "stopAll": true
         }
     ]
 }
