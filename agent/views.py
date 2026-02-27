@@ -7,6 +7,9 @@ import uuid
 from datetime import timedelta
 
 import livekit.api as livekit_api
+from django.conf import settings
+from payment.billing import consume_daily_user_quota
+from payment.permissions import HasActiveSubscription
 from rest_framework import permissions, serializers
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -17,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 @api_view(["POST"])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([permissions.IsAuthenticated, HasActiveSubscription])
 def create_livekit_room_token(request):
     """Create a LiveKit room token for the authenticated user."""
 
@@ -31,6 +34,13 @@ def create_livekit_room_token(request):
         raise serializers.ValidationError(
             {"detail": "LiveKit credentials not configured"}
         )
+
+    consume_daily_user_quota(
+        user=request.user,
+        quota_name="livekit_room_tokens",
+        max_daily_actions=settings.BILLING_MAX_LIVEKIT_TOKENS_PER_DAY,
+        detail="Daily agent usage limit reached for your account.",
+    )
 
     graph_name = input_serializer.validated_data["graph_name"]
     livekit_dispatch_agent_name = input_serializer.validated_data[

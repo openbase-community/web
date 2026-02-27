@@ -453,6 +453,11 @@ EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 
+BILLING_MAX_PROJECTS_PER_USER = int(os.getenv("BILLING_MAX_PROJECTS_PER_USER", "1"))
+BILLING_MAX_LIVEKIT_TOKENS_PER_DAY = int(
+    os.getenv("BILLING_MAX_LIVEKIT_TOKENS_PER_DAY", "100")
+)
+
 
 # Load settings.py from each app if it exists
 load_all_package_settings(globals())
