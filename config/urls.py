@@ -23,6 +23,7 @@ from oauth2_provider.urls import (
 )
 
 from config.app_packages import get_package_apps
+from config.jwt import jwks_view
 from sites import views
 
 admin_suffix = f"-{settings.ADMIN_SUFFIX}" if not settings.DEBUG else ""
@@ -36,6 +37,7 @@ admin_suffix = f"-{settings.ADMIN_SUFFIX}" if not settings.DEBUG else ""
 
 urlpatterns = [
     path(f"admin{admin_suffix}/", admin.site.urls),  # Use custom admin site
+    path(".well-known/jwks.json", jwks_view, name="jwks"),
     path(
         "o/",
         include(

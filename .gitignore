@@ -180,3 +180,6 @@ cython_debug/
 .idea/
 
 nginx/nginx.conf
+
+# Generated
+AGENTS.md

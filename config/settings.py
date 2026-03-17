@@ -418,10 +418,12 @@ HEADLESS_ADAPTER = "config.allauth_adapter.HeadlessAdapter"
 
 HEADLESS_ENABLED = True
 HEADLESS_ONLY = True
-HEADLESS_TOKEN_STRATEGY = "allauth.headless.tokens.strategies.jwt.JWTTokenStrategy"  # noqa: S105
+HEADLESS_TOKEN_STRATEGY = "config.jwt.OpenbaseJWTTokenStrategy"  # noqa: S105
 HEADLESS_JWT_PRIVATE_KEY = os.environ.get("HEADLESS_JWT_PRIVATE_KEY", "").replace(
     "\\n", "\n"
 )
+HEADLESS_JWT_ISSUER = os.environ.get("HEADLESS_JWT_ISSUER", "https://app.openbase.cloud")
+HEADLESS_JWT_AUDIENCE = os.environ.get("HEADLESS_JWT_AUDIENCE", "openbase-coder-cli")
 HEADLESS_JWT_ACCESS_TOKEN_EXPIRES_IN = 300  # 5 minutes
 HEADLESS_JWT_REFRESH_TOKEN_EXPIRES_IN = 86400 * 7  # 7 days
 HEADLESS_FRONTEND_URLS = {
