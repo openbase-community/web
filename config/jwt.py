@@ -3,6 +3,7 @@ from __future__ import annotations
 from django.conf import settings
 from django.http import JsonResponse
 
+from allauth.account.models import EmailAddress
 from allauth.core.internal import jwkkit
 from allauth.headless.tokens.strategies.jwt import JWTTokenStrategy
 
@@ -12,6 +13,20 @@ class OpenbaseJWTTokenStrategy(JWTTokenStrategy):
         claims = super().get_claims(user)
         claims["iss"] = settings.HEADLESS_JWT_ISSUER
         claims["aud"] = settings.HEADLESS_JWT_AUDIENCE
+
+        email = (getattr(user, "email", "") or "").strip()
+        if not email:
+            email_address = (
+                EmailAddress.objects.filter(user=user)
+                .order_by("-primary", "-verified", "pk")
+                .values_list("email", flat=True)
+                .first()
+            )
+            email = (email_address or "").strip()
+
+        if email:
+            claims["email"] = email
+
         return claims
 
 

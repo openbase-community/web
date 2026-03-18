@@ -6,7 +6,7 @@ http {
 
         client_max_body_size 100M;
 
-        location ~ ^/(api|admin|accounts|ws|_allauth|ml)/ {
+        location ~ ^/(api|admin|accounts|ws|_allauth|.well-known)/ {
             proxy_pass ${PROXY_TARGET};
             proxy_http_version  1.1;
             proxy_cache_bypass  $http_upgrade;
