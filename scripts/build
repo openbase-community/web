@@ -48,7 +48,7 @@ for type in web worker beat release; do
     DOCKERFILE_TMP="./.dockerfile.build.${type}.$$"
     sed \
         -e "s|COPY nocache.txt /tmp/nocache.txt|COPY ${NOCACHE_TMP#./} /tmp/nocache.txt|" \
-        -e "s|COPY app_requirements_docker.txt \\.|COPY ${APP_REQUIREMENTS_TMP#./} .|" \
+        -e "s|COPY app_requirements_docker.txt \\.|COPY ${APP_REQUIREMENTS_TMP#./} app_requirements_docker.txt|" \
         ./Dockerfile > "${DOCKERFILE_TMP}"
     printf 'CMD %s\n' "${CMD}" >> "${DOCKERFILE_TMP}"
     docker buildx build --platform linux/amd64 --push -t "registry.heroku.com/${APP_NAME}/${type}:latest" \
