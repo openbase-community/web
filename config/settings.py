@@ -369,6 +369,19 @@ else:
         "http://localhost:8081",
     ]
 
+_extra_csrf_origins = [
+    origin.strip()
+    for origin in os.environ.get("EXTRA_CSRF_TRUSTED_ORIGINS", "").split(",")
+    if origin.strip()
+]
+_extra_cors_origins = [
+    origin.strip()
+    for origin in os.environ.get("EXTRA_CORS_ALLOWED_ORIGINS", "").split(",")
+    if origin.strip()
+]
+CSRF_TRUSTED_ORIGINS = list(CSRF_TRUSTED_ORIGINS) + _extra_csrf_origins
+CORS_ALLOWED_ORIGINS = list(CORS_ALLOWED_ORIGINS) + _extra_cors_origins
+
 CORS_ALLOW_CREDENTIALS = True
 
 LOGIN_REDIRECT_URL = "/"
@@ -422,7 +435,9 @@ HEADLESS_TOKEN_STRATEGY = "config.jwt.OpenbaseJWTTokenStrategy"  # noqa: S105
 HEADLESS_JWT_PRIVATE_KEY = os.environ.get("HEADLESS_JWT_PRIVATE_KEY", "").replace(
     "\\n", "\n"
 )
-HEADLESS_JWT_ISSUER = os.environ.get("HEADLESS_JWT_ISSUER", "https://app.openbase.cloud")
+HEADLESS_JWT_ISSUER = os.environ.get(
+    "HEADLESS_JWT_ISSUER", "https://app.openbase.cloud"
+)
 HEADLESS_JWT_AUDIENCE = os.environ.get("HEADLESS_JWT_AUDIENCE", "openbase-coder-cli")
 HEADLESS_JWT_ACCESS_TOKEN_EXPIRES_IN = 300  # 5 minutes
 HEADLESS_JWT_REFRESH_TOKEN_EXPIRES_IN = 86400 * 7  # 7 days
