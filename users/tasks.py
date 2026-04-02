@@ -1,17 +1,16 @@
 from __future__ import annotations
 
 import logging
-import os
 import time
 
 import httpx
 import jwt
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from sendgrid import Mail, SendGridAPIClient
 from twilio.rest import Client
 
 from config.taskiq_config import broker
+from users.email import send_email_via_resend
 from users.models import UserAPNSToken
 
 required_prefix = "From your assistant: "
@@ -25,15 +24,12 @@ User = get_user_model()
 
 @broker.task
 def send_email(subject, message, to_email):
-    message = Mail(
-        from_email=f"app@{settings.DOMAIN_NAME}",
-        to_emails=to_email,
+    send_email_via_resend(
         subject=subject,
-        html_content=message,
+        html=message,
+        to=to_email,
+        from_email=f"app@{settings.DOMAIN_NAME}",
     )
-    sg = SendGridAPIClient(os.environ.get("SENDGRID_API_KEY"))
-    response = sg.send(message)
-    assert response.status_code in (202, 200)
 
 
 @broker.task

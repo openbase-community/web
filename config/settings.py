@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 import dj_database_url
 import sentry_sdk
 
-from config.app_packages import get_package_apps, load_all_package_settings
+from config.installed_apps import get_installed_apps, load_all_package_settings
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -66,8 +66,7 @@ INSTALLED_APPS = [
     "contact.apps.ContactConfig",
     "payment.apps.PaymentConfig",
     "teams.apps.TeamsConfig",
-    "agent.apps.AgentConfig",
-    *get_package_apps(),
+    *get_installed_apps(),
 ]
 
 MIDDLEWARE = [
@@ -228,7 +227,7 @@ def get_logging_module_names():
         "teams",
         "users",
     ]
-    return base_apps + get_package_apps()
+    return base_apps + get_installed_apps()
 
 
 LOGGING = {
@@ -398,7 +397,7 @@ APPLE_STOREKIT_KEY_ID = os.environ.get("APPLE_STOREKIT_KEY_ID")
 APPLE_STOREKIT_ISSUER_ID = os.environ.get("APPLE_STOREKIT_ISSUER_ID")
 APPLE_STOREKIT_P8_CONTENTS = os.environ.get("APPLE_STOREKIT_P8_CONTENTS")
 
-ADMIN_SUFFIX = os.environ["DJANGO_ADMIN_SUFFIX"]
+ADMIN_SUFFIX = os.environ["DJANGO_ADMIN_SUFFIX"] if not DEBUG else ""
 
 SENTRY_DSN = os.environ.get("SENTRY_DSN")
 if SENTRY_DSN:
@@ -461,14 +460,6 @@ SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
 LOGIN_URL = "/account/login"
 LOGIN_REDIRECT_URL = "/"  # Where to redirect after login
 LOGOUT_REDIRECT_URL = "/"  # Where to redirect after logout
-
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
-
-EMAIL_HOST = "smtp.sendgrid.net"
-EMAIL_HOST_USER = "apikey"  # this is exactly the value 'apikey'
-EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
 
 BILLING_MAX_PROJECTS_PER_USER = int(os.getenv("BILLING_MAX_PROJECTS_PER_USER", "1"))
 BILLING_MAX_LIVEKIT_TOKENS_PER_DAY = int(

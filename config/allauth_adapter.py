@@ -10,6 +10,7 @@ from allauth.headless.adapter import DefaultHeadlessAdapter
 from django.contrib.sites.shortcuts import get_current_site
 
 from sites.utils import get_current_site_attributes
+from users.email import send_email_via_resend
 
 
 class AccountAdapter(DefaultAccountAdapter):
@@ -19,10 +20,43 @@ class AccountAdapter(DefaultAccountAdapter):
         """
         site = get_current_site(context.request)
         site_attributes = get_current_site_attributes(context.request)
-        assert site is not None
-        assert site_attributes is not None
+        if site is None:
+            msg = "Current site is required to determine the from email address."
+            raise ValueError(msg)
+        if site_attributes is None:
+            msg = "Current site attributes are required to determine the from email address."
+            raise ValueError(msg)
 
         return f"{site.name} <{site_attributes.from_email}>"
+
+    def send_mail(self, template_prefix: str, email: str, template_context: dict) -> None:
+        request = context.request
+        ctx = {
+            "request": request,
+            "email": email,
+            "current_site": get_current_site(request),
+        }
+        ctx.update(template_context)
+        msg = self.render_mail(template_prefix, email, ctx)
+
+        text_body = None
+        html_body = None
+        if msg.content_subtype == "html":
+            html_body = msg.body
+        else:
+            text_body = msg.body
+
+        for alternative in getattr(msg, "alternatives", ()):
+            if alternative.mimetype == "text/html":
+                html_body = alternative.content
+
+        send_email_via_resend(
+            subject=msg.subject,
+            to=msg.to,
+            from_email=msg.from_email or self.get_from_email(),
+            html=html_body,
+            text=text_body,
+        )
 
 
 @dataclass

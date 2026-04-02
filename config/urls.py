@@ -22,7 +22,7 @@ from oauth2_provider.urls import (
     urlpatterns as oauth_url_patterns,
 )
 
-from config.app_packages import get_package_apps
+from config.installed_apps import get_installed_apps
 from config.jwt import jwks_view
 from sites import views
 
@@ -53,7 +53,6 @@ urlpatterns = [
     path("api/", include("users.urls")),
     path("api/", include("contact.urls")),
     path("api/", include("payment.urls")),
-    path("api/", include("agent.urls")),
 ]
 
 extra_urls = allauth.headless.urls
@@ -62,7 +61,7 @@ extra_urls = allauth.headless.urls
 url_prefixes = json.loads(os.environ.get("URL_PREFIXES", "{}"))
 
 # Add enabled site URLs
-for app in get_package_apps():
+for app in get_installed_apps():
     # Check for exact match first
     if app in url_prefixes:
         prefix = url_prefixes[app].rstrip("/") + "/"
