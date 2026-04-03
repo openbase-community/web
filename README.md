@@ -21,7 +21,7 @@ Non-interactive setup behavior:
 - Skips Google OAuth setup if credentials are not provided.
 - Allows providing Google OAuth credentials through `GOOGLE_OAUTH_CREDENTIALS_JSON`.
 
-## AWS Deployment Scripts
+## Production Deployment Scripts
 
 The `scripts/` directory is now oriented around Terraform + ECS on AWS instead of Heroku.
 
@@ -36,23 +36,25 @@ Terraform state defaults to `openbase-terraform-state-<aws-account-id>-<aws-regi
 Typical flow:
 
 1. Create a local Terraform vars file:
-   `./scripts/new_deployment <stack-name> [environment]`
-2. Build and push both images together:
-   `./scripts/build <stack-name> "<app-requirements>" [environment] [image-tag]`
+   `./scripts/prod-new-deployment <stack-name> [environment]`
+2. Build and push the shared app image:
+   `./scripts/prod-build <stack-name> "<app-requirements>" [environment] [image-tag]`
    If omitted, the build defaults to installing `openbase-cloud-api` from GitHub.
 3. Apply infrastructure:
-   `./scripts/infra_apply <stack-name> [environment] [image-tag]`
+   `./scripts/prod-infra-apply <stack-name> [environment] [image-tag]`
 4. Configure Cloudflare DNS, origin certs, and strict SSL:
-   `./scripts/cloudflare_setup <stack-name> [environment]`
+   `./scripts/prod-cloudflare-setup <stack-name> [environment]`
 5. Deploy both ECS services together:
-   `./scripts/deploy <stack-name> [environment] [image-tag]`
+   `./scripts/prod-deploy <stack-name> [environment] [image-tag]`
 6. Roll back both ECS services together if needed:
-   `./scripts/rollback <stack-name> [environment]`
+   `./scripts/prod-rollback <stack-name> [environment]`
 7. Open an interactive one-off shell in the web image:
-   `./scripts/shell <stack-name> [environment]`
+   `./scripts/prod-shell <stack-name> [environment]`
 8. View merged CloudWatch logs across web, worker, and host-level Caddy access logs:
-   `./scripts/logs <stack-name> [environment] [--tail]`
+   `./scripts/prod-logs <stack-name> [environment] [--tail] [--lines <count>]`
 
-`./scripts/deploy` always updates `web` and `worker` in the same release and runs database migrations before shifting the services.
-`./scripts/shell` starts a one-off ECS task from the current web task definition and attaches with ECS Exec. It requires `session-manager-plugin` locally, and the image must include `/bin/bash`.
-`./scripts/logs` reads `/web`, `/worker`, and `/caddy` CloudWatch log groups, merges them by timestamp, and can either show recent logs or keep polling with `--tail`.
+Production-facing operational entrypoints are prefixed with `prod-` so they do not read like local dev helpers.
+`./scripts/prod-deploy` always updates `web` and `worker` in the same release, using the same application image for both task definitions, and runs database migrations before shifting the services.
+`./scripts/prod-shell` starts a one-off ECS task from the current web task definition and attaches with ECS Exec. It requires `session-manager-plugin` locally, and the image must include `/bin/bash`.
+`./scripts/prod-logs` reads `/web`, `/worker`, and `/caddy` CloudWatch log groups, merges them by timestamp, and can either show recent logs or keep polling with `--tail`. Use `--lines <count>` if you want the last N merged log lines instead of a fixed time window.
+The S3/CDN bucket CORS policy is Terraform-managed; by default it allows the configured `web_hostname` origin to fetch assets, and you can extend that with `frontend_cors_allowed_origins` in your tfvars file.

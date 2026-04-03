@@ -264,6 +264,7 @@ if not DEBUG and REDIS_URL.startswith("rediss://"):
     REDIS_URL = f"{REDIS_URL}{'&' if '?' in REDIS_URL else '?'}ssl_cert_reqs=none"
 REDIS_HOST = urlparse(REDIS_URL).hostname
 REDIS_PORT = urlparse(REDIS_URL).port
+BROKER_URL = REDIS_URL
 
 CHANNEL_LAYERS = {
     "default": {

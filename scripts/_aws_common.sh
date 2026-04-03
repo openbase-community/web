@@ -87,7 +87,7 @@ ensure_ecr_image_tag() {
     aws ecr describe-images \
         --repository-name "${repository_name}" \
         --image-ids "imageTag=${image_tag}" >/dev/null 2>&1 || \
-        fail "Missing ${component} image tag ${image_tag} in ${repository_name}. Run ./scripts/build first."
+        fail "Missing ${component} image tag ${image_tag} in ${repository_name}. Run ./scripts/prod-build first."
 }
 
 ecr_login() {
@@ -161,6 +161,16 @@ terraform_output_raw() {
     local output_name="$1"
 
     terraform -chdir="${TERRAFORM_DIR}" output -raw "${output_name}"
+}
+
+terraform_managed_task_definition() {
+    local resource_name="$1"
+
+    terraform -chdir="${TERRAFORM_DIR}" state pull | jq -r \
+        --arg resource_name "${resource_name}" \
+        '.resources[]
+        | select(.mode == "managed" and .type == "aws_ecs_task_definition" and .name == $resource_name)
+        | .instances[0].attributes.arn'
 }
 
 current_service_task_definition() {

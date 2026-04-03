@@ -5,15 +5,17 @@ trap 'exit 0' PIPE
 
 usage() {
     cat <<'EOF'
-Usage: logs <stack-name> [environment] [--tail]
+Usage: prod-logs <stack-name> [environment] [--tail] [--lines <count>]
 
 Examples:
-  ./scripts/logs openbase-api-core prod
-  ./scripts/logs openbase-api-core prod --tail
+  ./scripts/prod-logs openbase-api-core prod
+  ./scripts/prod-logs openbase-api-core prod --lines 200
+  ./scripts/prod-logs openbase-api-core prod --tail
 
 Environment overrides:
-  LOGS_LOOKBACK_SECONDS  How far back to fetch recent logs without --tail. Default: 900
-  LOGS_POLL_SECONDS      Poll interval when using --tail. Default: 2
+  LOGS_LOOKBACK_SECONDS      Initial lookback window in seconds. Default: 900
+  LOGS_MAX_LOOKBACK_SECONDS  Max lookback window used with --lines. Default: 604800
+  LOGS_POLL_SECONDS          Poll interval when using --tail. Default: 2
 EOF
 }
 
@@ -27,11 +29,19 @@ STACK_NAME=""
 ENVIRONMENT="dev"
 ENVIRONMENT_SET=false
 TAIL=false
+LINE_COUNT=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --tail)
             TAIL=true
+            shift
+            ;;
+        --lines)
+            shift
+            [[ $# -gt 0 ]] || fail "Missing value for --lines"
+            [[ "$1" =~ ^[1-9][0-9]*$ ]] || fail "--lines must be a positive integer"
+            LINE_COUNT="$1"
             shift
             ;;
         -h|--help)
@@ -61,6 +71,7 @@ done
 }
 
 LOOKBACK_SECONDS="${LOGS_LOOKBACK_SECONDS:-900}"
+MAX_LOOKBACK_SECONDS="${LOGS_MAX_LOOKBACK_SECONDS:-604800}"
 POLL_SECONDS="${LOGS_POLL_SECONDS:-2}"
 
 WEB_LOG_GROUP="/ecs/${STACK_NAME}-${ENVIRONMENT}/web"
@@ -143,16 +154,66 @@ merged_event_count() {
     jq 'length' <<<"${merged_json}"
 }
 
-START_MS="$(( $(now_ms) - (LOOKBACK_SECONDS * 1000) ))"
-LATEST_SEEN_MS="${START_MS}"
+tail_merged_events() {
+    local merged_json="$1"
+    local line_count="$2"
+    jq --argjson line_count "${line_count}" 'if length > $line_count then .[-$line_count:] else . end' <<<"${merged_json}"
+}
 
-INITIAL_MERGED="$(read_logs_since "${START_MS}")"
+read_initial_logs() {
+    local now
+    local start_ms
+    local merged
+    local current_lookback
+    local event_count
+
+    now="$(now_ms)"
+
+    if [[ -z "${LINE_COUNT}" ]]; then
+        start_ms="$((now - (LOOKBACK_SECONDS * 1000) ))"
+        LATEST_SEEN_MS="${start_ms}"
+        read_logs_since "${start_ms}"
+        return
+    fi
+
+    current_lookback="${LOOKBACK_SECONDS}"
+    if (( current_lookback <= 0 )); then
+        current_lookback=1
+    fi
+
+    while true; do
+        start_ms="$((now - (current_lookback * 1000) ))"
+        merged="$(read_logs_since "${start_ms}")"
+        event_count="$(merged_event_count "${merged}")"
+
+        if (( event_count >= LINE_COUNT || current_lookback >= MAX_LOOKBACK_SECONDS )); then
+            LATEST_SEEN_MS="${start_ms}"
+            tail_merged_events "${merged}" "${LINE_COUNT}"
+            return
+        fi
+
+        current_lookback="$(( current_lookback * 2 ))"
+        if (( current_lookback > MAX_LOOKBACK_SECONDS )); then
+            current_lookback="${MAX_LOOKBACK_SECONDS}"
+        fi
+    done
+}
+
+INITIAL_MERGED="$(read_initial_logs)"
 
 if [[ "$(merged_event_count "${INITIAL_MERGED}")" == "0" ]]; then
     if [[ "${TAIL}" == "true" ]]; then
-        echo "No caddy/web/worker logs found in the last ${LOOKBACK_SECONDS} seconds. Waiting for new logs..." >&2
+        if [[ -n "${LINE_COUNT}" ]]; then
+            echo "No caddy/web/worker logs found while looking for the last ${LINE_COUNT} lines. Waiting for new logs..." >&2
+        else
+            echo "No caddy/web/worker logs found in the last ${LOOKBACK_SECONDS} seconds. Waiting for new logs..." >&2
+        fi
     else
-        echo "No caddy/web/worker logs found in the last ${LOOKBACK_SECONDS} seconds." >&2
+        if [[ -n "${LINE_COUNT}" ]]; then
+            echo "No caddy/web/worker logs found while looking for the last ${LINE_COUNT} lines." >&2
+        else
+            echo "No caddy/web/worker logs found in the last ${LOOKBACK_SECONDS} seconds." >&2
+        fi
     fi
 fi
 

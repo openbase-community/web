@@ -46,9 +46,9 @@ variable "worker_instance_type" {
 }
 
 variable "web_ingress_cidrs" {
-  description = "CIDR blocks allowed to reach the web origin over HTTP/HTTPS. Lock this down to Cloudflare egress ranges if you want origin protection."
+  description = "IPv4 CIDR blocks allowed to reach the web origin over HTTP/HTTPS. Defaults to the published Cloudflare IPv4 ranges when unset."
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = []
 }
 
 variable "web_hostname" {
@@ -62,8 +62,14 @@ variable "cdn_hostname" {
   default     = ""
 }
 
+variable "frontend_cors_allowed_origins" {
+  description = "Origins allowed to fetch frontend/static/media assets from the S3 bucket. Defaults to the public web hostname when unset."
+  type        = list(string)
+  default     = []
+}
+
 variable "cloudflare_ipv4_cidrs" {
-  description = "Cloudflare IPv4 ranges allowed to fetch public assets from the S3 website endpoint."
+  description = "Published Cloudflare IPv4 ranges allowed to fetch public assets from the S3 website endpoint and, by default, reach the web origin."
   type        = list(string)
   default = [
     "173.245.48.0/20",
@@ -84,14 +90,32 @@ variable "cloudflare_ipv4_cidrs" {
   ]
 }
 
-variable "web_image" {
-  description = "Container image URI for the web service."
+variable "app_image" {
+  description = "Container image URI shared by the web and worker ECS services."
   type        = string
+  default     = ""
+
+  validation {
+    condition     = trimspace(var.app_image) != "" || trimspace(var.web_image) != "" || trimspace(var.worker_image) != ""
+    error_message = "Set app_image, or set one of the legacy web_image/worker_image values."
+  }
+
+  validation {
+    condition     = trimspace(var.app_image) != "" || trimspace(var.web_image) == "" || trimspace(var.worker_image) == "" || trimspace(var.web_image) == trimspace(var.worker_image)
+    error_message = "web_image and worker_image must match when app_image is unset."
+  }
+}
+
+variable "web_image" {
+  description = "Deprecated: use app_image instead."
+  type        = string
+  default     = ""
 }
 
 variable "worker_image" {
-  description = "Container image URI for the worker service."
+  description = "Deprecated: use app_image instead."
   type        = string
+  default     = ""
 }
 
 variable "web_container_port" {

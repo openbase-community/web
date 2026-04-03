@@ -24,15 +24,22 @@ locals {
     var.tags,
   )
 
-  bucket_name          = trimspace(var.cdn_hostname) != "" ? lower(var.cdn_hostname) : lower("${local.prefix}-${data.aws_caller_identity.current.account_id}-${var.aws_region}")
-  asset_public_domain  = trimspace(var.cdn_hostname) != "" ? lower(var.cdn_hostname) : aws_s3_bucket.app.bucket_regional_domain_name
+  bucket_name         = trimspace(var.cdn_hostname) != "" ? lower(var.cdn_hostname) : lower("${local.prefix}-${data.aws_caller_identity.current.account_id}-${var.aws_region}")
+  asset_public_domain = trimspace(var.cdn_hostname) != "" ? lower(var.cdn_hostname) : aws_s3_bucket.app.bucket_regional_domain_name
+  ecs_app_image       = trimspace(var.app_image) != "" ? trimspace(var.app_image) : trimspace(var.web_image) != "" ? trimspace(var.web_image) : trimspace(var.worker_image)
+  web_ingress_cidrs   = distinct(compact(length(var.web_ingress_cidrs) > 0 ? var.web_ingress_cidrs : var.cloudflare_ipv4_cidrs))
+  frontend_cors_allowed_origins = distinct(compact(
+    length(var.frontend_cors_allowed_origins) > 0
+    ? var.frontend_cors_allowed_origins
+    : ["https://${var.web_hostname}"]
+  ))
 
   cloudflare_origin_cert_parameter_arn = "arn:${data.aws_partition.current.partition}:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${trimprefix(var.cloudflare_origin_cert_parameter_name, "/")}"
   cloudflare_origin_key_parameter_arn  = "arn:${data.aws_partition.current.partition}:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${trimprefix(var.cloudflare_origin_key_parameter_name, "/")}"
 
   caddyfile = templatefile("${path.module}/templates/Caddyfile.tftpl", {
-    web_hostname  = var.web_hostname
-    web_host_port = var.web_host_port
+    web_hostname          = var.web_hostname
+    web_host_port         = var.web_host_port
     caddy_access_log_path = var.caddy_access_log_path
   })
 

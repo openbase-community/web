@@ -219,11 +219,11 @@ resource "aws_ecs_task_definition" "web" {
   container_definitions = jsonencode([
     {
       name      = "web"
-      image     = var.web_image
+      image     = local.ecs_app_image
       essential = true
       cpu       = var.web_task_cpu
       memory    = var.web_task_memory
-      command   = [
+      command = [
         "/app/.venv/bin/gunicorn",
         "config.asgi:application",
         "--log-file",
@@ -276,11 +276,11 @@ resource "aws_ecs_task_definition" "worker" {
   container_definitions = jsonencode([
     {
       name      = "worker"
-      image     = var.worker_image
+      image     = local.ecs_app_image
       essential = true
       cpu       = var.worker_task_cpu
       memory    = var.worker_task_memory
-      command   = [
+      command = [
         "/app/.venv/bin/taskiq",
         "worker",
         "--log-level=INFO",

@@ -377,7 +377,7 @@ web_instance_id_from_aws() {
     printf '%s\n' "${instance_id}"
 }
 
-"${SCRIPT_DIR}/ensure_terraform_state" >/dev/null
+"${SCRIPT_DIR}/prod-ensure-terraform-state" >/dev/null
 terraform_init "${STACK_NAME}" "${ENVIRONMENT}"
 
 WEB_HOSTNAME="$(terraform_output_raw web_hostname)"

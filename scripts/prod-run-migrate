@@ -16,7 +16,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/_aws_common.sh"
 
 require_commands aws jq terraform
-"${SCRIPT_DIR}/ensure_terraform_state" >/dev/null
+"${SCRIPT_DIR}/prod-ensure-terraform-state" >/dev/null
 terraform_init "${STACK_NAME}" "${ENVIRONMENT}"
 
 CLUSTER_NAME="$(terraform_output_raw cluster_name)"
@@ -42,7 +42,6 @@ TASK_ARN="$(
         --cluster "${CLUSTER_NAME}" \
         --launch-type EC2 \
         --task-definition "${TASK_DEFINITION_ARN}" \
-        --placement-constraints 'type=memberOf,expression=attribute:role == web' \
         --overrides "${OVERRIDES_JSON}" \
         --query 'tasks[0].taskArn' \
         --output text

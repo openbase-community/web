@@ -28,6 +28,7 @@ RUN --mount=type=secret,id=gh_pat \
         git config --global url."https://${GH_PAT}:x-oauth-basic@github.com/".insteadOf "https://github.com/"; \
     fi && \
     uv sync --frozen --no-dev --no-editable && \
+    uv pip install --python /app/.venv/bin/python . && \
     if [ -s /tmp/private_github_repos.txt ]; then \
         uv pip install --python /app/.venv/bin/python -r /tmp/private_github_repos.txt; \
     fi && \

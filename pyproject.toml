@@ -20,7 +20,6 @@ dependencies = [
     "gunicorn>=23.0",
     "hiredis>=3.3",
     "httpx[http2]>=0.28",
-    "openai>=2.15",
     "pgvector>=0.4",
     "psycopg[binary]>=3.3",
     "python-dotenv>=1.2",

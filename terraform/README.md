@@ -25,10 +25,11 @@ The defaults are intentionally cost-sensitive rather than production-hard:
 
 - ECS instances live in public subnets to avoid a NAT gateway bill
 - Caddy terminates origin TLS on the web EC2 instance and proxies to the ECS web task on host port `8080`
-- Cloudflare is expected to sit in front of the web Elastic IP
+- Cloudflare is expected to sit in front of the web Elastic IP, and the default web-origin ingress only allows Cloudflare's published IPv4 ranges
 - RDS is single-AZ with no deletion protection and no retention window
 - ElastiCache is a single-node cache cluster
 - The S3 bucket is public-read so it can serve the frontend, media, and static assets directly
+- The S3 bucket emits CORS headers for `https://<web_hostname>` by default so the app origin can fetch hashed CSS, JS, fonts, and media from the CDN hostname
 
 That keeps spend down, but it is not a hardened production posture.
 
@@ -38,8 +39,10 @@ That keeps spend down, but it is not a hardened production posture.
 - The web origin is a single ECS task bound to host port `8080` on a single EC2 instance, fronted by Caddy on `80/443`.
 - The worker runs on its own single EC2 instance with no public ingress.
 - Deployments should update `web` and `worker` together so both services move to the same application release.
+- The web and worker task definitions share one application image and differ only in their ECS `command` values.
 - Because there is only one web task and no ALB, deploys and rollbacks will have a brief interruption while ECS stops the old task and starts the new one.
-- If you want to restrict direct origin access, replace `web_ingress_cidrs` with Cloudflare's published egress ranges or move to Cloudflare Tunnel.
+- If you need to allow something besides Cloudflare to hit the origin, override `web_ingress_cidrs`. Otherwise it defaults to Cloudflare's published IPv4 ranges.
+- If assets need to be fetched from additional browser origins, override `frontend_cors_allowed_origins`.
 
 ## Cloudflare Setup
 
@@ -48,7 +51,7 @@ Cloudflare is managed by the script layer instead of Terraform.
 After `terraform apply`, run:
 
 ```bash
-CLOUDFLARE_API_TOKEN=... ./scripts/cloudflare_setup <stack-name> <environment>
+CLOUDFLARE_API_TOKEN=... ./scripts/prod-cloudflare-setup <stack-name> <environment>
 ```
 
 That script will:
@@ -115,15 +118,14 @@ You asked not to commit lockfiles here, so `.terraform.lock.hcl` is ignored in t
 ## Usage
 
 1. Copy `terraform.tfvars.example` to a local `.tfvars` file that stays untracked.
-2. Set `web_hostname`, container image URIs, and secret/parameter names.
+2. Set `web_hostname`, `app_image`, and secret/parameter names.
 3. Initialize Terraform with the remote backend config.
 4. Run `terraform plan`.
 5. Run `terraform apply`.
 
 ## Notes
 
-- The web and worker services expect prebuilt images, currently as separate tags from the same repo.
-- The future ECS deploy script should treat `web` and `worker` as one release unit and update both in the same run.
+- The web and worker services expect one prebuilt application image, and the ECS task definitions provide the different runtime commands.
 - The web origin presents a Cloudflare Origin CA certificate from SSM. If you use a customer-managed KMS key for those parameters, grant the web instance role permission to decrypt it.
 - The Django app uses PostgreSQL locally, so the Terraform defaults target RDS PostgreSQL.
 - If you rely on `pgvector`, confirm the chosen RDS PostgreSQL engine version in your target region before apply.

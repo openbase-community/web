@@ -83,14 +83,14 @@ resource "aws_security_group" "web_instance" {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = var.web_ingress_cidrs
+    cidr_blocks = local.web_ingress_cidrs
   }
 
   ingress {
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = var.web_ingress_cidrs
+    cidr_blocks = local.web_ingress_cidrs
   }
 
   egress {
