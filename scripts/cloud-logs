@@ -5,12 +5,12 @@ trap 'exit 0' PIPE
 
 usage() {
     cat <<'EOF'
-Usage: prod-logs <stack-name> [environment] [--tail] [--lines <count>]
+Usage: cloud-logs <stack-name> [environment] [--tail] [--lines <count>]
 
 Examples:
-  ./scripts/prod-logs openbase-api-core prod
-  ./scripts/prod-logs openbase-api-core prod --lines 200
-  ./scripts/prod-logs openbase-api-core prod --tail
+  ./scripts/cloud-logs openbase-api-core prod
+  ./scripts/cloud-logs openbase-api-core prod --lines 200
+  ./scripts/cloud-logs openbase-api-core prod --tail
 
 Environment overrides:
   LOGS_LOOKBACK_SECONDS      Initial lookback window in seconds. Default: 900
@@ -20,8 +20,8 @@ EOF
 }
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=scripts/_aws_common.sh
-source "${SCRIPT_DIR}/_aws_common.sh"
+# shellcheck source=scripts/internal/aws-common.sh
+source "${SCRIPT_DIR}/internal/aws-common.sh"
 
 require_commands aws jq python3
 

@@ -46,27 +46,27 @@ That keeps spend down, but it is not a hardened production posture.
 
 ## Cloudflare Setup
 
-Cloudflare is managed by the script layer instead of Terraform.
+Cloudflare ownership is split:
 
-After `terraform apply`, run:
+- Terraform manages the proxied DNS records for `web_hostname` and `cdn_hostname`
+- Terraform manages the CDN hostname configuration rule that forces `SSL: Flexible`
+- `./scripts/cloudflare-setup` manages Cloudflare Origin CA issuance plus the Caddy reload on the web host
+
+During `terraform apply`, set `CLOUDFLARE_API_TOKEN` in your shell so the Cloudflare provider can manage the DNS records and ruleset. Then run:
 
 ```bash
-CLOUDFLARE_API_TOKEN=... ./scripts/prod-cloudflare-setup <stack-name> <environment>
+CLOUDFLARE_API_TOKEN=... ./scripts/cloudflare-setup <stack-name> <environment>
 ```
 
 That script will:
 
-1. Discover the correct Cloudflare zone for `web_hostname`.
-2. Create or update a proxied `A` record pointing to the Terraform output `web_origin_ip`.
-3. If `cdn_hostname` is set, create or update a proxied `CNAME` pointing to the S3 website endpoint.
-4. If `cdn_hostname` is set, create or update a Cloudflare Configuration Rule that forces `SSL: Flexible` for that hostname.
-5. Generate a Cloudflare Origin CA certificate for `web_hostname`.
-6. Store the certificate and key in the SSM parameter names configured by:
+1. Generate a Cloudflare Origin CA certificate for `web_hostname`.
+2. Store the certificate and key in the SSM parameter names configured by:
    - `cloudflare_origin_cert_parameter_name`
    - `cloudflare_origin_key_parameter_name`
-7. Reload Caddy on the web host through SSM so it starts serving the new origin certificate.
+3. Reload Caddy on the web host through SSM so it starts serving the new origin certificate.
 
-The script expects the zone to already exist in your Cloudflare account. By default it infers the zone from `web_hostname`, but you can override that with `CLOUDFLARE_ZONE_NAME` or `CLOUDFLARE_ZONE_ID`.
+The Terraform Cloudflare resources expect the zone to already exist in your Cloudflare account. By default the config infers the zone name from the last two labels of `web_hostname`; override that with `cloudflare_zone_name` in your `.tfvars` file if your zone does not follow that shape.
 
 The API token should have permissions for:
 

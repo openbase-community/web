@@ -62,6 +62,12 @@ variable "cdn_hostname" {
   default     = ""
 }
 
+variable "cloudflare_zone_name" {
+  description = "Cloudflare zone that owns web_hostname and cdn_hostname. Defaults to the last two labels of web_hostname."
+  type        = string
+  default     = ""
+}
+
 variable "frontend_cors_allowed_origins" {
   description = "Origins allowed to fetch frontend/static/media assets from the S3 bucket. Defaults to the public web hostname when unset."
   type        = list(string)

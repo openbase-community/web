@@ -11,15 +11,15 @@ STACK_NAME="$1"
 ENVIRONMENT="${2:-dev}"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=scripts/_aws_common.sh
-source "${SCRIPT_DIR}/_aws_common.sh"
+# shellcheck source=scripts/internal/aws-common.sh
+source "${SCRIPT_DIR}/internal/aws-common.sh"
 
 IMAGE_TAG="${3:-${IMAGE_TAG:-$(default_image_tag)}}"
 TFVARS_FILE="$(require_tfvars_file "${ENVIRONMENT}")"
 APP_IMAGE_URI="$(ecr_repository_uri "${STACK_NAME}" "${ENVIRONMENT}" "app"):${IMAGE_TAG}"
 
 require_commands aws terraform
-"${SCRIPT_DIR}/prod-ensure-terraform-state"
+"${SCRIPT_DIR}/ensure-terraform-state"
 ensure_ecr_repository "${STACK_NAME}" "${ENVIRONMENT}" "app"
 ensure_ecr_image_tag "${STACK_NAME}" "${ENVIRONMENT}" "app" "${IMAGE_TAG}"
 terraform_init "${STACK_NAME}" "${ENVIRONMENT}"

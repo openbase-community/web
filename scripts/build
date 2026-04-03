@@ -2,8 +2,8 @@
 
 set -euo pipefail
 
-if [[ $# -lt 1 || $# -gt 4 ]]; then
-    echo "Usage: $(basename "$0") <stack-name> [app-requirements] [environment] [image-tag]" >&2
+if [[ $# -lt 2 || $# -gt 4 ]]; then
+    echo "Usage: $(basename "$0") <stack-name> <app-requirements> [environment] [image-tag]" >&2
     exit 2
 fi
 
@@ -11,10 +11,10 @@ STACK_NAME="$1"
 APP_REQUIREMENTS="${2:-${APP_REQUIREMENTS:-}}"
 ENVIRONMENT="${3:-dev}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=scripts/_aws_common.sh
-source "${SCRIPT_DIR}/_aws_common.sh"
+# shellcheck source=scripts/internal/aws-common.sh
+source "${SCRIPT_DIR}/internal/aws-common.sh"
 
-IMAGE_TAG="${4:-${IMAGE_TAG:-$(default_image_tag)}}"
+IMAGE_TAG="${4:-${IMAGE_TAG:-$(generated_image_tag)}}"
 APP_IMAGE_REPOSITORY="$(ecr_repository_uri "${STACK_NAME}" "${ENVIRONMENT}" "app")"
 
 require_commands aws docker git sed uv
@@ -25,31 +25,31 @@ PRIVATE_GITHUB_REPOS_TMP="./.private_github_repos.build.$$"
 NOCACHE_TMP="./.nocache.build.$$"
 
 cleanup() {
-    "${SCRIPT_DIR}/cleanup_build_artifacts"
+    rm -f \
+        ./Dockerfile.tmp \
+        ./.dockerfile.build.* \
+        ./.private_github_repos.build.* \
+        ./.nocache.build.*
 }
 
 trap cleanup EXIT
 
 cd "${REPO_DIR}"
 
-"${SCRIPT_DIR}/cleanup_build_artifacts"
+cleanup
 
-if [[ -z "${APP_REQUIREMENTS}" ]]; then
-    printf '%s\n' "git+https://github.com/openbase-community/openbase-cloud-api" > "${PRIVATE_GITHUB_REPOS_TMP}"
-else
-    printf '%s' "${APP_REQUIREMENTS}" | tr ',' '\n' | while IFS= read -r requirement; do
-        requirement="${requirement#"${requirement%%[![:space:]]*}"}"
-        requirement="${requirement%"${requirement##*[![:space:]]}"}"
-        if [[ -z "${requirement}" ]]; then
-            continue
-        fi
-        if [[ "${requirement}" == https://github.com/* ]]; then
-            printf 'git+%s\n' "${requirement}"
-        else
-            printf '%s\n' "${requirement}"
-        fi
-    done > "${PRIVATE_GITHUB_REPOS_TMP}"
-fi
+printf '%s' "${APP_REQUIREMENTS}" | tr ',' '\n' | while IFS= read -r requirement; do
+    requirement="${requirement#"${requirement%%[![:space:]]*}"}"
+    requirement="${requirement%"${requirement##*[![:space:]]}"}"
+    if [[ -z "${requirement}" ]]; then
+        continue
+    fi
+    if [[ "${requirement}" == https://github.com/* ]]; then
+        printf 'git+%s\n' "${requirement}"
+    else
+        printf '%s\n' "${requirement}"
+    fi
+done > "${PRIVATE_GITHUB_REPOS_TMP}"
 
 date > "${NOCACHE_TMP}"
 

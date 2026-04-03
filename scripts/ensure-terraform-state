@@ -3,8 +3,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=scripts/_aws_common.sh
-source "${SCRIPT_DIR}/_aws_common.sh"
+# shellcheck source=scripts/internal/aws-common.sh
+source "${SCRIPT_DIR}/internal/aws-common.sh"
 
 require_commands aws
 

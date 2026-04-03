@@ -28,6 +28,14 @@ locals {
   asset_public_domain = trimspace(var.cdn_hostname) != "" ? lower(var.cdn_hostname) : aws_s3_bucket.app.bucket_regional_domain_name
   ecs_app_image       = trimspace(var.app_image) != "" ? trimspace(var.app_image) : trimspace(var.web_image) != "" ? trimspace(var.web_image) : trimspace(var.worker_image)
   web_ingress_cidrs   = distinct(compact(length(var.web_ingress_cidrs) > 0 ? var.web_ingress_cidrs : var.cloudflare_ipv4_cidrs))
+  cloudflare_zone_name = trimspace(var.cloudflare_zone_name) != "" ? trimspace(var.cloudflare_zone_name) : join(
+    ".",
+    slice(
+      split(".", var.web_hostname),
+      max(length(split(".", var.web_hostname)) - 2, 0),
+      length(split(".", var.web_hostname)),
+    ),
+  )
   frontend_cors_allowed_origins = distinct(compact(
     length(var.frontend_cors_allowed_origins) > 0
     ? var.frontend_cors_allowed_origins

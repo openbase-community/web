@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
+REPO_DIR="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
 TERRAFORM_DIR="${REPO_DIR}/terraform"
 AWS_REGION="${AWS_REGION:-us-east-1}"
 AWS_ACCOUNT_ID_CACHE="${AWS_ACCOUNT_ID_CACHE:-}"
@@ -25,8 +25,8 @@ require_env() {
     [[ -n "${!name:-}" ]] || fail "Missing required environment variable: ${name}"
 }
 
-default_image_tag() {
-    git -C "${REPO_DIR}" rev-parse --short HEAD
+generated_image_tag() {
+    date -u '+%Y%m%d%H%M%S'
 }
 
 aws_account_id() {
@@ -87,7 +87,37 @@ ensure_ecr_image_tag() {
     aws ecr describe-images \
         --repository-name "${repository_name}" \
         --image-ids "imageTag=${image_tag}" >/dev/null 2>&1 || \
-        fail "Missing ${component} image tag ${image_tag} in ${repository_name}. Run ./scripts/prod-build first."
+        fail "Missing ${component} image tag ${image_tag} in ${repository_name}. Run ./scripts/build first."
+}
+
+latest_ecr_image_tag() {
+    local stack_name="$1"
+    local environment="$2"
+    local component="$3"
+    local repository_name
+    local image_tag
+
+    repository_name="$(ecr_repository_name "${stack_name}" "${environment}" "${component}")"
+
+    image_tag="$(
+        aws ecr describe-images \
+            --repository-name "${repository_name}" \
+            --output json | jq -r '
+                .imageDetails
+                | sort_by(.imagePushedAt // 0)
+                | reverse
+                | map(
+                    (.imageTags // [])
+                    | map(select(. != "latest"))
+                    | .[0] // empty
+                )
+                | map(select(length > 0))
+                | .[0] // empty
+            '
+    )"
+
+    [[ -n "${image_tag}" ]] || fail "Could not determine the latest pushed image tag for ${repository_name}"
+    printf '%s\n' "${image_tag}"
 }
 
 ecr_login() {
@@ -132,10 +162,13 @@ write_backend_config() {
     local stack_name="$1"
     local environment="$2"
     local backend_file
+    local tmp_root
 
     local tf_state_bucket="${TF_STATE_BUCKET:-$(default_tf_state_bucket)}"
 
-    backend_file="$(mktemp "${TMPDIR:-/tmp}/api-core-terraform-backend.XXXXXX.hcl")"
+    tmp_root="${TMPDIR:-/tmp}"
+    tmp_root="${tmp_root%/}"
+    backend_file="$(mktemp "${tmp_root}/api-core-terraform-backend.XXXXXX")"
     cat > "${backend_file}" <<EOF
 bucket       = "${tf_state_bucket}"
 key          = "$(terraform_backend_key "${stack_name}" "${environment}")"

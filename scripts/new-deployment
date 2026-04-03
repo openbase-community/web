@@ -11,7 +11,7 @@ STACK_NAME="$1"
 ENVIRONMENT="${2:-dev}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
-source "${SCRIPT_DIR}/_aws_common.sh"
+source "${SCRIPT_DIR}/internal/aws-common.sh"
 
 require_commands aws
 
@@ -28,6 +28,7 @@ name        = "${STACK_NAME}"
 environment = "${ENVIRONMENT}"
 aws_region  = "${AWS_REGION}"
 web_hostname = "api.example.com"
+cloudflare_zone_name = "example.com"
 
 app_image = "${APP_IMAGE_URI}:bootstrap"
 
@@ -52,8 +53,8 @@ echo "  1. Set TF_STATE_BUCKET in your shell."
 echo "  2. Create the SSM parameter for DJANGO_SECRET_KEY:"
 echo "     aws ssm put-parameter --name \"/${STACK_NAME}/${ENVIRONMENT}/django-secret-key\" --type SecureString --value \"\$(openssl rand -base64 32)\""
 echo "  3. Fill in web_hostname, db_password, and any additional settings in ${TFVARS_FILE}."
-echo "  4. Build the app image: ./scripts/prod-build ${STACK_NAME} \"https://github.com/openbase-community/openbase-cloud-api\" ${ENVIRONMENT}"
-echo "  5. Apply infra: ./scripts/prod-infra-apply ${STACK_NAME} ${ENVIRONMENT}"
-echo "  6. Export CLOUDFLARE_API_TOKEN with permissions for Zone DNS Write, Zone Settings Write, Zone Read, and SSL/TLS Write."
-echo "  7. Configure Cloudflare DNS + Origin CA automatically: ./scripts/prod-cloudflare-setup ${STACK_NAME} ${ENVIRONMENT}"
-echo "  8. Deploy web + worker together: ./scripts/prod-deploy ${STACK_NAME} ${ENVIRONMENT}"
+echo "  4. Build the app image: ./scripts/build ${STACK_NAME} \"<app-requirements>\" ${ENVIRONMENT}"
+echo "  5. Export CLOUDFLARE_API_TOKEN with permissions for Zone:Read, DNS:Edit, Config Rules:Edit, and SSL and Certificates:Edit."
+echo "  6. Apply infra: ./scripts/infra-apply ${STACK_NAME} ${ENVIRONMENT}"
+echo "  7. Issue the Cloudflare Origin CA cert + reload Caddy: ./scripts/cloudflare-setup ${STACK_NAME} ${ENVIRONMENT}"
+echo "  8. Deploy web + worker together: ./scripts/deploy ${STACK_NAME} ${ENVIRONMENT}"

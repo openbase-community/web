@@ -12,11 +12,11 @@ ENVIRONMENT="${2:-dev}"
 TASK_DEFINITION_ARN="${3:-}"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=scripts/_aws_common.sh
-source "${SCRIPT_DIR}/_aws_common.sh"
+# shellcheck source=scripts/internal/aws-common.sh
+source "${SCRIPT_DIR}/internal/aws-common.sh"
 
 require_commands aws jq terraform session-manager-plugin
-"${SCRIPT_DIR}/prod-ensure-terraform-state" >/dev/null
+"${SCRIPT_DIR}/ensure-terraform-state" >/dev/null
 terraform_init "${STACK_NAME}" "${ENVIRONMENT}"
 
 CLUSTER_NAME="$(terraform_output_raw cluster_name)"

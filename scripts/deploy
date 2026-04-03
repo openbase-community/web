@@ -10,14 +10,14 @@ fi
 STACK_NAME="$1"
 ENVIRONMENT="${2:-dev}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=scripts/_aws_common.sh
-source "${SCRIPT_DIR}/_aws_common.sh"
+# shellcheck source=scripts/internal/aws-common.sh
+source "${SCRIPT_DIR}/internal/aws-common.sh"
 
-IMAGE_TAG="${3:-${IMAGE_TAG:-$(default_image_tag)}}"
+IMAGE_TAG="${3:-${IMAGE_TAG:-$(latest_ecr_image_tag "${STACK_NAME}" "${ENVIRONMENT}" "app")}}"
 APP_IMAGE_URI="$(ecr_repository_uri "${STACK_NAME}" "${ENVIRONMENT}" "app"):${IMAGE_TAG}"
 
 require_commands aws jq terraform
-"${SCRIPT_DIR}/prod-ensure-terraform-state" >/dev/null
+"${SCRIPT_DIR}/ensure-terraform-state" >/dev/null
 ensure_ecr_image_tag "${STACK_NAME}" "${ENVIRONMENT}" "app" "${IMAGE_TAG}"
 terraform_init "${STACK_NAME}" "${ENVIRONMENT}"
 
@@ -41,7 +41,7 @@ NEW_WORKER_TASK_DEFINITION="$(
         "${APP_IMAGE_URI}"
 )"
 
-"${SCRIPT_DIR}/prod-run-migrate" "${STACK_NAME}" "${ENVIRONMENT}" "${NEW_WEB_TASK_DEFINITION}"
+"${SCRIPT_DIR}/internal/run-migrate" "${STACK_NAME}" "${ENVIRONMENT}" "${NEW_WEB_TASK_DEFINITION}"
 
 aws ecs update-service \
     --cluster "${CLUSTER_NAME}" \
