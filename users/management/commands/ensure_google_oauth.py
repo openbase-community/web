@@ -1,6 +1,5 @@
-from __future__ import annotations
-
 import json
+import os
 
 from allauth.socialaccount.models import SocialApp
 from django.contrib.sites.models import Site
@@ -20,16 +19,31 @@ class Command(BaseCommand):
             default="My App",
             help="Display name for the created SocialApp.",
         )
+        parser.add_argument(
+            "--non-interactive",
+            action="store_true",
+            help="Skip prompting and exit successfully when credentials are unavailable.",
+        )
 
     def handle(self, *args, **options):
         if SocialApp.objects.filter(provider="google").exists():
             self.stdout.write("Google OAuth already configured, skipping...")
             return
 
-        credentials_raw = options["credentials_json"]
+        credentials_raw = options["credentials_json"] or os.environ.get(
+            "GOOGLE_OAUTH_CREDENTIALS_JSON"
+        )
         if credentials_raw is None:
+            if options["non_interactive"]:
+                self.stdout.write(
+                    "No Google OAuth configuration found, skipping in non-interactive mode..."
+                )
+                return
+
             self.stdout.write("No Google OAuth configuration found.")
-            self.stdout.write("Paste your Google OAuth credentials JSON, or press Enter on an empty line to skip:")
+            self.stdout.write(
+                "Paste your Google OAuth credentials JSON, or press Enter on an empty line to skip:"
+            )
             credentials_raw = input().strip()
             if not credentials_raw:
                 self.stdout.write("Skipping Google OAuth configuration...")
@@ -52,9 +66,9 @@ class Command(BaseCommand):
             msg = "Google OAuth credentials must include web.client_id and web.client_secret."
             raise CommandError(msg)
 
-        sites = list(Site.objects.filter(id__in=[1, 2]).order_by("id"))
-        if len(sites) != 2:
-            msg = "Default sites are missing. Run ensure_default_sites before ensure_google_oauth."
+        sites = list(Site.objects.filter(id=1))
+        if len(sites) != 1:
+            msg = "Default site is missing. Run ensure_default_sites before ensure_google_oauth."
             raise CommandError(msg)
 
         app = SocialApp.objects.create(

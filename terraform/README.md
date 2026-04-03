@@ -1,0 +1,129 @@
+# Terraform
+
+This directory provisions a low-cost AWS baseline for `api-core`:
+
+- ECS on EC2 with:
+  - one `t3.small` web host
+  - one `t3.medium` worker host
+- An Elastic IP for the web host so Cloudflare can proxy traffic to it
+- PostgreSQL on RDS using `db.t4g.micro` by default
+- Redis on ElastiCache using `cache.t4g.micro` by default
+- One S3 bucket for the frontend, Django media, and Django static assets
+
+## Layout
+
+- `backend.tf`: partial remote-state backend declaration
+- `versions.tf`: Terraform and provider constraints
+- `networking.tf`: VPC, subnets, routes, and security groups
+- `ecs.tf`: IAM, ECS cluster, EC2 instances, ECS services, and the web Elastic IP
+- `database.tf`: RDS PostgreSQL and ElastiCache Redis
+- `storage.tf`: S3 bucket and website hosting
+
+## Defaults
+
+The defaults are intentionally cost-sensitive rather than production-hard:
+
+- ECS instances live in public subnets to avoid a NAT gateway bill
+- Caddy terminates origin TLS on the web EC2 instance and proxies to the ECS web task on host port `8080`
+- Cloudflare is expected to sit in front of the web Elastic IP
+- RDS is single-AZ with no deletion protection and no retention window
+- ElastiCache is a single-node cache cluster
+- The S3 bucket is public-read so it can serve the frontend, media, and static assets directly
+
+That keeps spend down, but it is not a hardened production posture.
+
+## Architecture Notes
+
+- There is no ALB in this version because the fixed monthly cost is high for an early-stage single-replica setup.
+- The web origin is a single ECS task bound to host port `8080` on a single EC2 instance, fronted by Caddy on `80/443`.
+- The worker runs on its own single EC2 instance with no public ingress.
+- Deployments should update `web` and `worker` together so both services move to the same application release.
+- Because there is only one web task and no ALB, deploys and rollbacks will have a brief interruption while ECS stops the old task and starts the new one.
+- If you want to restrict direct origin access, replace `web_ingress_cidrs` with Cloudflare's published egress ranges or move to Cloudflare Tunnel.
+
+## Cloudflare Setup
+
+Cloudflare is managed by the script layer instead of Terraform.
+
+After `terraform apply`, run:
+
+```bash
+CLOUDFLARE_API_TOKEN=... ./scripts/cloudflare_setup <stack-name> <environment>
+```
+
+That script will:
+
+1. Discover the correct Cloudflare zone for `web_hostname`.
+2. Create or update a proxied `A` record pointing to the Terraform output `web_origin_ip`.
+3. If `cdn_hostname` is set, create or update a proxied `CNAME` pointing to the S3 website endpoint.
+4. If `cdn_hostname` is set, create or update a Cloudflare Configuration Rule that forces `SSL: Flexible` for that hostname.
+5. Generate a Cloudflare Origin CA certificate for `web_hostname`.
+6. Store the certificate and key in the SSM parameter names configured by:
+   - `cloudflare_origin_cert_parameter_name`
+   - `cloudflare_origin_key_parameter_name`
+7. Reload Caddy on the web host through SSM so it starts serving the new origin certificate.
+
+The script expects the zone to already exist in your Cloudflare account. By default it infers the zone from `web_hostname`, but you can override that with `CLOUDFLARE_ZONE_NAME` or `CLOUDFLARE_ZONE_ID`.
+
+The API token should have permissions for:
+
+- `Zone:Read`
+- `DNS:Edit`
+- `Config Rules:Edit`
+- `SSL and Certificates:Edit`
+
+## Rough Monthly Shape
+
+Using the defaults in `us-east-1`, the rough shape is:
+
+- `t3.small` web EC2: about `$15/mo`
+- `t3.medium` worker EC2: about `$30/mo`
+- RDS `db.t4g.micro`: roughly `$12/mo` plus storage
+- ElastiCache `cache.t4g.micro`: roughly `$12-14/mo`
+- Cloudflare: outside AWS billing
+
+So the stack is roughly in the `$70/mo` range before transfer, EBS, snapshots, and growth-driven usage.
+
+## Remote State
+
+Do not commit local state files.
+
+This directory includes a partial `s3` backend block so you can keep state in a shared Terraform state bucket instead of in git. I would keep that bucket outside this stack, at the account or platform level, and pass backend settings during `terraform init`.
+
+Example `backend.hcl`:
+
+```hcl
+bucket       = "shared-terraform-state"
+key          = "openbase/api-core/dev.tfstate"
+region       = "us-east-1"
+use_lockfile = true
+encrypt      = true
+```
+
+Then initialize with:
+
+```bash
+terraform init -backend-config=backend.hcl
+```
+
+That avoids bootstrapping-state-with-the-same-stack and keeps the state file off developer machines.
+
+## Lock File
+
+You asked not to commit lockfiles here, so `.terraform.lock.hcl` is ignored in this directory. Normally I would commit it for reproducibility, but this setup follows your repo preference.
+
+## Usage
+
+1. Copy `terraform.tfvars.example` to a local `.tfvars` file that stays untracked.
+2. Set `web_hostname`, container image URIs, and secret/parameter names.
+3. Initialize Terraform with the remote backend config.
+4. Run `terraform plan`.
+5. Run `terraform apply`.
+
+## Notes
+
+- The web and worker services expect prebuilt images, currently as separate tags from the same repo.
+- The future ECS deploy script should treat `web` and `worker` as one release unit and update both in the same run.
+- The web origin presents a Cloudflare Origin CA certificate from SSM. If you use a customer-managed KMS key for those parameters, grant the web instance role permission to decrypt it.
+- The Django app uses PostgreSQL locally, so the Terraform defaults target RDS PostgreSQL.
+- If you rely on `pgvector`, confirm the chosen RDS PostgreSQL engine version in your target region before apply.

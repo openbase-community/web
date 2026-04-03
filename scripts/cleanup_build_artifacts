@@ -9,7 +9,6 @@ cd "${REPO_DIR}"
 
 rm -f \
     ./Dockerfile.tmp \
-    ./app_requirements_docker.txt \
     ./.dockerfile.build.* \
-    ./.app_requirements_docker.build.* \
+    ./.private_github_repos.build.* \
     ./.nocache.build.*

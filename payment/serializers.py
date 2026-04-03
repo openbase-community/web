@@ -7,14 +7,15 @@ class AddValueSerializer(serializers.Serializer):
 
     def validate_amount(self, value):
         if value < 5:
-            raise serializers.ValidationError("Amount must be no less than $5.00")
+            msg = "Amount must be no less than $5.00"
+            raise serializers.ValidationError(msg)
         if value > 200:
-            raise serializers.ValidationError("Amount must be less than $200")
+            msg = "Amount must be less than $200"
+            raise serializers.ValidationError(msg)
         return value
 
 
 class AddValueHistorySerializer(serializers.Serializer):
-
     # Use a nice date format for the user
     date = serializers.DateTimeField(format="%A, %B %d, %Y %I:%M%p")  # type: ignore
 

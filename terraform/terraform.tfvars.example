@@ -1,0 +1,22 @@
+name         = "openbase-api-core"
+environment  = "dev"
+aws_region   = "us-east-1"
+web_hostname = "api.example.com"
+cdn_hostname = "cdn.example.com"
+
+web_image    = "123456789012.dkr.ecr.us-east-1.amazonaws.com/openbase-api-core:web"
+worker_image = "123456789012.dkr.ecr.us-east-1.amazonaws.com/openbase-api-core:worker"
+
+db_password = "replace-me"
+
+web_ingress_cidrs = ["0.0.0.0/0"]
+cloudflare_origin_cert_parameter_name = "/openbase-api-core/dev/cloudflare-origin-cert"
+cloudflare_origin_key_parameter_name  = "/openbase-api-core/dev/cloudflare-origin-key"
+
+common_environment = {
+  DJANGO_DEBUG = "0"
+}
+
+common_secrets = {
+  DJANGO_SECRET_KEY = "arn:aws:ssm:us-east-1:123456789012:parameter/openbase/dev/django-secret-key"
+}

@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ $# -lt 1 || $# -gt 4 ]]; then
+    echo "Usage: $(basename "$0") <stack-name> [environment] [web-task-definition-arn] [worker-task-definition-arn]" >&2
+    exit 2
+fi
+
+STACK_NAME="$1"
+ENVIRONMENT="${2:-dev}"
+REQUESTED_WEB_TASK_DEFINITION="${3:-}"
+REQUESTED_WORKER_TASK_DEFINITION="${4:-}"
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/_aws_common.sh
+source "${SCRIPT_DIR}/_aws_common.sh"
+
+require_commands aws jq terraform
+"${SCRIPT_DIR}/ensure_terraform_state" >/dev/null
+terraform_init "${STACK_NAME}" "${ENVIRONMENT}"
+
+CLUSTER_NAME="$(terraform_output_raw cluster_name)"
+WEB_SERVICE_NAME="$(terraform_output_raw web_service_name)"
+WORKER_SERVICE_NAME="$(terraform_output_raw worker_service_name)"
+
+CURRENT_WEB_TASK_DEFINITION="$(current_service_task_definition "${CLUSTER_NAME}" "${WEB_SERVICE_NAME}")"
+CURRENT_WORKER_TASK_DEFINITION="$(current_service_task_definition "${CLUSTER_NAME}" "${WORKER_SERVICE_NAME}")"
+
+WEB_TASK_DEFINITION="${REQUESTED_WEB_TASK_DEFINITION}"
+WORKER_TASK_DEFINITION="${REQUESTED_WORKER_TASK_DEFINITION}"
+
+if [[ -z "${WEB_TASK_DEFINITION}" ]]; then
+    WEB_TASK_DEFINITION="$(
+        previous_active_task_definition \
+            "$(task_definition_family "${CURRENT_WEB_TASK_DEFINITION}")" \
+            "${CURRENT_WEB_TASK_DEFINITION}"
+    )"
+fi
+
+if [[ -z "${WORKER_TASK_DEFINITION}" ]]; then
+    WORKER_TASK_DEFINITION="$(
+        previous_active_task_definition \
+            "$(task_definition_family "${CURRENT_WORKER_TASK_DEFINITION}")" \
+            "${CURRENT_WORKER_TASK_DEFINITION}"
+    )"
+fi
+
+[[ -n "${WEB_TASK_DEFINITION}" ]] || fail "Could not determine a previous web task definition"
+[[ -n "${WORKER_TASK_DEFINITION}" ]] || fail "Could not determine a previous worker task definition"
+
+aws ecs update-service \
+    --cluster "${CLUSTER_NAME}" \
+    --service "${WEB_SERVICE_NAME}" \
+    --task-definition "${WEB_TASK_DEFINITION}" >/dev/null
+
+aws ecs update-service \
+    --cluster "${CLUSTER_NAME}" \
+    --service "${WORKER_SERVICE_NAME}" \
+    --task-definition "${WORKER_TASK_DEFINITION}" >/dev/null
+
+aws ecs wait services-stable \
+    --cluster "${CLUSTER_NAME}" \
+    --services "${WEB_SERVICE_NAME}" "${WORKER_SERVICE_NAME}"
+
+echo "Rolled back ${STACK_NAME}/${ENVIRONMENT}"
+echo "  web:    ${WEB_TASK_DEFINITION}"
+echo "  worker: ${WORKER_TASK_DEFINITION}"

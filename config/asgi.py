@@ -7,12 +7,10 @@ For more information on this file, see
 https://docs.djangoproject.com/en/4.2/howto/deployment/asgi/
 """
 
-from __future__ import annotations
-
-import logging
 import os
 from importlib import import_module
 
+import structlog
 from channels.auth import AuthMiddlewareStack
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.security.websocket import AllowedHostsOriginValidator
@@ -24,7 +22,7 @@ from config.installed_apps import get_installed_apps
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 os.environ["ASGI_THREADS"] = "4"
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 django_asgi_app = get_asgi_application()
 

@@ -1,15 +1,8 @@
-from __future__ import annotations
-
 import json
 import os
 
 import allauth.headless.urls
-
-# from django.contrib import admin
 from django.conf import settings
-
-# from django.contrib import admin # Comment out or remove, as we use the custom site instance directly
-from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import (
     SpectacularAPIView,
@@ -22,6 +15,7 @@ from oauth2_provider.urls import (
     urlpatterns as oauth_url_patterns,
 )
 
+from config.admin import site as dynamic_admin_site
 from config.installed_apps import get_installed_apps
 from config.jwt import jwks_view
 from sites import views
@@ -36,7 +30,7 @@ admin_suffix = f"-{settings.ADMIN_SUFFIX}" if not settings.DEBUG else ""
 #     dynamic_admin_site.login = secure_admin_login(dynamic_admin_site.login)
 
 urlpatterns = [
-    path(f"admin{admin_suffix}/", admin.site.urls),  # Use custom admin site
+    path(f"admin{admin_suffix}/", dynamic_admin_site.urls),
     path(".well-known/jwks.json", jwks_view, name="jwks"),
     path(
         "o/",

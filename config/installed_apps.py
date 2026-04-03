@@ -1,17 +1,10 @@
-from __future__ import annotations
-
+import functools
 import importlib.metadata
 
-_installed_apps_cache = None
 
-
-def get_installed_apps():
+@functools.cache
+def get_installed_apps() -> list[str]:
     """Retrieve Django installed apps from registered entry points."""
-    global _installed_apps_cache
-
-    if _installed_apps_cache is not None:
-        return _installed_apps_cache
-
     apps = []
     entry_points = importlib.metadata.entry_points()
 
@@ -20,7 +13,6 @@ def get_installed_apps():
         if callable(app_list_func):
             apps.extend(app_list_func())
 
-    _installed_apps_cache = apps
     return apps
 
 

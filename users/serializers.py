@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from asgiref.sync import async_to_sync
 from django.contrib.auth import get_user_model
 from rest_framework import serializers

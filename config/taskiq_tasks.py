@@ -1,13 +1,12 @@
-from __future__ import annotations
-
-import logging
 import pkgutil
 from importlib import import_module
+
+import structlog
 
 from config.installed_apps import get_installed_apps
 from users import tasks  # noqa: F401
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Add enabled site tasks
 for app in get_installed_apps():

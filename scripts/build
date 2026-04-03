@@ -2,19 +2,32 @@
 
 set -euo pipefail
 
-APP_NAME="$1"
-GH_PAT="$2"
-APP_REQUIREMENTS="$3"
+if [[ $# -lt 1 || $# -gt 4 ]]; then
+    echo "Usage: $(basename "$0") <stack-name> [app-requirements] [environment] [image-tag]" >&2
+    exit 2
+fi
+
+STACK_NAME="$1"
+APP_REQUIREMENTS="${2:-${APP_REQUIREMENTS:-}}"
+ENVIRONMENT="${3:-dev}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=scripts/_aws_common.sh
+source "${SCRIPT_DIR}/_aws_common.sh"
+
+IMAGE_TAG="${4:-${IMAGE_TAG:-$(default_image_tag)}}"
+WEB_IMAGE_REPOSITORY="$(ecr_repository_uri "${STACK_NAME}" "${ENVIRONMENT}" "web")"
+WORKER_IMAGE_REPOSITORY="$(ecr_repository_uri "${STACK_NAME}" "${ENVIRONMENT}" "worker")"
+
+require_commands aws docker git sed uv
+ensure_ecr_repository "${STACK_NAME}" "${ENVIRONMENT}" "web"
+ensure_ecr_repository "${STACK_NAME}" "${ENVIRONMENT}" "worker"
+ecr_login
 
 # shellcheck disable=SC2016
-WEB_CMD='gunicorn config.asgi:application --log-file - -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT'
-WORKER_CMD="taskiq worker --log-level=INFO --max-threadpool-threads=2 config.taskiq_config:broker config.taskiq_tasks"
-BEAT_CMD="taskiq scheduler --log-level=INFO config.taskiq_config:scheduler config.taskiq_tasks"
-RELEASE_CMD='python3 manage.py migrate'
+WEB_CMD='/app/.venv/bin/gunicorn config.asgi:application --log-file - -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT'
+WORKER_CMD="/app/.venv/bin/taskiq worker --log-level=INFO --max-threadpool-threads=2 config.taskiq_config:broker config.taskiq_tasks"
 
-APP_REQUIREMENTS_TMP="./.app_requirements_docker.build.$$"
+PRIVATE_GITHUB_REPOS_TMP="./.private_github_repos.build.$$"
 NOCACHE_TMP="./.nocache.build.$$"
 
 cleanup() {
@@ -27,33 +40,51 @@ cd "${REPO_DIR}"
 
 "${SCRIPT_DIR}/cleanup_build_artifacts"
 
-# Write app requirements to file - ensure git+ prefix for GitHub URLs
-if [[ "${APP_REQUIREMENTS}" == https://github.com/* ]]; then
-    printf 'git+%s\n' "${APP_REQUIREMENTS}" > "${APP_REQUIREMENTS_TMP}"
+if [[ -z "${APP_REQUIREMENTS}" ]]; then
+    printf '%s\n' "git+https://github.com/openbase-community/openbase-cloud-api" > "${PRIVATE_GITHUB_REPOS_TMP}"
 else
-    printf '%s\n' "${APP_REQUIREMENTS}" > "${APP_REQUIREMENTS_TMP}"
+    printf '%s' "${APP_REQUIREMENTS}" | tr ',' '\n' | while IFS= read -r requirement; do
+        requirement="${requirement#"${requirement%%[![:space:]]*}"}"
+        requirement="${requirement%"${requirement##*[![:space:]]}"}"
+        if [[ -z "${requirement}" ]]; then
+            continue
+        fi
+        if [[ "${requirement}" == https://github.com/* ]]; then
+            printf 'git+%s\n' "${requirement}"
+        else
+            printf '%s\n' "${requirement}"
+        fi
+    done > "${PRIVATE_GITHUB_REPOS_TMP}"
 fi
 
 date > "${NOCACHE_TMP}"
 
-# Build each configuration
-for type in web worker beat release; do
-    case "$type" in
-        web)     CMD="${WEB_CMD}" ;;
-        worker)  CMD="${WORKER_CMD}" ;;
-        beat)    CMD="${BEAT_CMD}" ;;
-        release) CMD="${RELEASE_CMD}" ;;
-    esac
-
-    DOCKERFILE_TMP="./.dockerfile.build.${type}.$$"
+build_image() {
+    local type="$1"
+    local cmd="$2"
+    local repository="$3"
+    local dockerfile_tmp
+    dockerfile_tmp="./.dockerfile.build.${type}.$$"
     sed \
         -e "s|COPY nocache.txt /tmp/nocache.txt|COPY ${NOCACHE_TMP#./} /tmp/nocache.txt|" \
-        -e "s|COPY app_requirements_docker.txt \\.|COPY ${APP_REQUIREMENTS_TMP#./} app_requirements_docker.txt|" \
-        ./Dockerfile > "${DOCKERFILE_TMP}"
-    printf 'CMD %s\n' "${CMD}" >> "${DOCKERFILE_TMP}"
-    docker buildx build --platform linux/amd64 --push -t "registry.heroku.com/${APP_NAME}/${type}:latest" \
-        -f "${DOCKERFILE_TMP}" \
-        --build-arg GH_PAT="${GH_PAT}" \
-        --provenance false .
-    rm -f "${DOCKERFILE_TMP}"
-done
+        -e "s|COPY private_github_repos.txt /tmp/private_github_repos.txt|COPY ${PRIVATE_GITHUB_REPOS_TMP#./} /tmp/private_github_repos.txt|" \
+        ./Dockerfile > "${dockerfile_tmp}"
+    printf 'CMD %s\n' "${cmd}" >> "${dockerfile_tmp}"
+    docker buildx build \
+        --platform linux/amd64 \
+        --push \
+        -t "${repository}:${IMAGE_TAG}" \
+        -t "${repository}:latest" \
+        -f "${dockerfile_tmp}" \
+        --secret id=gh_pat,env=GH_PAT \
+        --provenance false \
+        .
+    rm -f "${dockerfile_tmp}"
+}
+
+build_image web "${WEB_CMD}" "${WEB_IMAGE_REPOSITORY}"
+build_image worker "${WORKER_CMD}" "${WORKER_IMAGE_REPOSITORY}"
+
+echo "Built and pushed:"
+echo "  ${WEB_IMAGE_REPOSITORY}:${IMAGE_TAG}"
+echo "  ${WORKER_IMAGE_REPOSITORY}:${IMAGE_TAG}"

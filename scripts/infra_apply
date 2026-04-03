@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ $# -lt 1 || $# -gt 3 ]]; then
+    echo "Usage: $(basename "$0") <stack-name> [environment] [image-tag]" >&2
+    exit 2
+fi
+
+STACK_NAME="$1"
+ENVIRONMENT="${2:-dev}"
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/_aws_common.sh
+source "${SCRIPT_DIR}/_aws_common.sh"
+
+IMAGE_TAG="${3:-${IMAGE_TAG:-$(default_image_tag)}}"
+TFVARS_FILE="$(require_tfvars_file "${ENVIRONMENT}")"
+WEB_IMAGE_URI="$(ecr_repository_uri "${STACK_NAME}" "${ENVIRONMENT}" "web"):${IMAGE_TAG}"
+WORKER_IMAGE_URI="$(ecr_repository_uri "${STACK_NAME}" "${ENVIRONMENT}" "worker"):${IMAGE_TAG}"
+
+require_commands aws terraform
+"${SCRIPT_DIR}/ensure_terraform_state"
+ensure_ecr_repository "${STACK_NAME}" "${ENVIRONMENT}" "web"
+ensure_ecr_repository "${STACK_NAME}" "${ENVIRONMENT}" "worker"
+ensure_ecr_image_tag "${STACK_NAME}" "${ENVIRONMENT}" "web" "${IMAGE_TAG}"
+ensure_ecr_image_tag "${STACK_NAME}" "${ENVIRONMENT}" "worker" "${IMAGE_TAG}"
+terraform_init "${STACK_NAME}" "${ENVIRONMENT}"
+
+terraform -chdir="${TERRAFORM_DIR}" apply \
+    -var-file="${TFVARS_FILE}" \
+    -var "name=${STACK_NAME}" \
+    -var "environment=${ENVIRONMENT}" \
+    -var "web_image=${WEB_IMAGE_URI}" \
+    -var "worker_image=${WORKER_IMAGE_URI}"

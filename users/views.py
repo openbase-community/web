@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from rest_framework import generics, status

@@ -2,42 +2,61 @@
 
 set -euo pipefail
 
-if [ $# -eq 0 ]; then
-    echo "Error: Please provide the app name as an argument"
-    echo "Usage: $0 <app-name>"
-    exit 1
+if [[ $# -lt 1 || $# -gt 2 ]]; then
+    echo "Usage: $(basename "$0") <stack-name> [environment]" >&2
+    exit 2
 fi
 
-APP_NAME="$1"
-TEMPLATE_APP="${2:-openbase}"
+STACK_NAME="$1"
+ENVIRONMENT="${2:-dev}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+source "${SCRIPT_DIR}/_aws_common.sh"
 
-# Create the app with container stack
-echo "Creating Heroku app: $APP_NAME"
-heroku create "$APP_NAME" --stack container
+require_commands aws
 
-# Copy config vars from template app, excluding certain keys
-echo "Copying config vars from template app: $TEMPLATE_APP"
-heroku config --json -a "$TEMPLATE_APP" | \
-    jq 'del(.DATABASE_URL, .DJANGO_SECRET_KEY, .REDIS_URL)' | \
-    jq -r 'to_entries[] | select(.value != null) | "\(.key)\t\(.value | @base64)"' | \
-    while IFS=$'\t' read -r key value; do
-        decoded_value=$(echo "$value" | base64 -d)
-        heroku config:set --app "$APP_NAME" "$key=$decoded_value"
-    done
+TFVARS_FILE="$(tfvars_file_for_environment "${ENVIRONMENT}")"
+WEB_IMAGE_URI="$(ecr_repository_uri "${STACK_NAME}" "${ENVIRONMENT}" "web")"
+WORKER_IMAGE_URI="$(ecr_repository_uri "${STACK_NAME}" "${ENVIRONMENT}" "worker")"
+DJANGO_SECRET_ARN="arn:aws:ssm:${AWS_REGION}:$(aws_account_id):parameter/${STACK_NAME}/${ENVIRONMENT}/django-secret-key"
 
-# Generate a new DJANGO_SECRET_KEY
-echo "Generating new DJANGO_SECRET_KEY"
-NEW_SECRET_KEY=$(openssl rand -base64 32)
-heroku config:set DJANGO_SECRET_KEY="$NEW_SECRET_KEY" --app "$APP_NAME"
+if [[ -e "${TFVARS_FILE}" ]]; then
+    fail "Terraform vars file already exists: ${TFVARS_FILE}"
+fi
 
-# Add required add-ons (using mini tier for cost efficiency)
-echo "Adding PostgreSQL and Redis add-ons..."
-heroku addons:create heroku-postgresql:essential-0 --app "$APP_NAME"
-heroku addons:create heroku-redis:mini --app "$APP_NAME"
+cat > "${TFVARS_FILE}" <<EOF
+name        = "${STACK_NAME}"
+environment = "${ENVIRONMENT}"
+aws_region  = "${AWS_REGION}"
+web_hostname = "api.example.com"
 
-echo "Setup complete! You can now deploy using either:"
-echo "1. GitHub Actions deployment workflow"
-echo "2. Manual deployment with:"
-echo "   ./scripts/gha_build $APP_NAME"
-echo "   ./scripts/gha_deploy $APP_NAME"
+web_image    = "${WEB_IMAGE_URI}:bootstrap"
+worker_image = "${WORKER_IMAGE_URI}:bootstrap"
 
+db_password = "replace-me"
+
+web_ingress_cidrs = ["0.0.0.0/0"]
+cloudflare_origin_cert_parameter_name = "/${STACK_NAME}/${ENVIRONMENT}/cloudflare-origin-cert"
+cloudflare_origin_key_parameter_name  = "/${STACK_NAME}/${ENVIRONMENT}/cloudflare-origin-key"
+
+common_environment = {
+  DJANGO_DEBUG = "0"
+}
+
+common_secrets = {
+  DJANGO_SECRET_KEY = "${DJANGO_SECRET_ARN}"
+}
+EOF
+
+echo "Created ${TFVARS_FILE}"
+echo
+echo "Next steps:"
+echo "  1. Set TF_STATE_BUCKET in your shell."
+echo "  2. Create the SSM parameter for DJANGO_SECRET_KEY:"
+echo "     aws ssm put-parameter --name \"/${STACK_NAME}/${ENVIRONMENT}/django-secret-key\" --type SecureString --value \"\$(openssl rand -base64 32)\""
+echo "  3. Fill in web_hostname, db_password, and any additional settings in ${TFVARS_FILE}."
+echo "  4. Build images: ./scripts/build ${STACK_NAME} \"https://github.com/openbase-community/openbase-cloud-api\" ${ENVIRONMENT}"
+echo "  5. Apply infra: ./scripts/infra_apply ${STACK_NAME} ${ENVIRONMENT}"
+echo "  6. Export CLOUDFLARE_API_TOKEN with permissions for Zone DNS Write, Zone Settings Write, Zone Read, and SSL/TLS Write."
+echo "  7. Configure Cloudflare DNS + Origin CA automatically: ./scripts/cloudflare_setup ${STACK_NAME} ${ENVIRONMENT}"
+echo "  8. Deploy web + worker together: ./scripts/deploy ${STACK_NAME} ${ENVIRONMENT}"

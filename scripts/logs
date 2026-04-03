@@ -1,0 +1,170 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+trap 'exit 0' PIPE
+
+usage() {
+    cat <<'EOF'
+Usage: logs <stack-name> [environment] [--tail]
+
+Examples:
+  ./scripts/logs openbase-api-core prod
+  ./scripts/logs openbase-api-core prod --tail
+
+Environment overrides:
+  LOGS_LOOKBACK_SECONDS  How far back to fetch recent logs without --tail. Default: 900
+  LOGS_POLL_SECONDS      Poll interval when using --tail. Default: 2
+EOF
+}
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/_aws_common.sh
+source "${SCRIPT_DIR}/_aws_common.sh"
+
+require_commands aws jq python3
+
+STACK_NAME=""
+ENVIRONMENT="dev"
+ENVIRONMENT_SET=false
+TAIL=false
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --tail)
+            TAIL=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -*)
+            fail "Unknown option: $1"
+            ;;
+        *)
+            if [[ -z "${STACK_NAME}" ]]; then
+                STACK_NAME="$1"
+            elif [[ "${ENVIRONMENT_SET}" == "false" ]]; then
+                ENVIRONMENT="$1"
+                ENVIRONMENT_SET=true
+            else
+                fail "Unexpected argument: $1"
+            fi
+            shift
+            ;;
+    esac
+done
+
+[[ -n "${STACK_NAME}" ]] || {
+    usage >&2
+    exit 2
+}
+
+LOOKBACK_SECONDS="${LOGS_LOOKBACK_SECONDS:-900}"
+POLL_SECONDS="${LOGS_POLL_SECONDS:-2}"
+
+WEB_LOG_GROUP="/ecs/${STACK_NAME}-${ENVIRONMENT}/web"
+WORKER_LOG_GROUP="/ecs/${STACK_NAME}-${ENVIRONMENT}/worker"
+CADDY_LOG_GROUP="/ecs/${STACK_NAME}-${ENVIRONMENT}/caddy"
+SEEN_EVENT_IDS_FILE="$(mktemp "${TMPDIR:-/tmp}/api-core-logs-seen.XXXXXX")"
+
+trap 'rm -f "${SEEN_EVENT_IDS_FILE}"' EXIT
+
+now_ms() {
+    python3 - <<'PY'
+import time
+print(int(time.time() * 1000))
+PY
+}
+
+format_timestamp() {
+    local timestamp_ms="$1"
+    date -r "$((timestamp_ms / 1000))" '+%Y-%m-%d %H:%M:%S'
+}
+
+fetch_events() {
+    local log_group="$1"
+    local component="$2"
+    local start_ms="$3"
+
+    if ! aws logs filter-log-events \
+        --log-group-name "${log_group}" \
+        --start-time "${start_ms}" \
+        --output json 2>/dev/null | jq \
+        --arg component "${component}" \
+        '[.events[]? | {
+            timestamp,
+            event_id: .eventId,
+            component: $component,
+            message: (.message | sub("\n$"; "")),
+            stream: .logStreamName
+        }]'; then
+        printf '[]\n'
+    fi
+}
+
+print_merged_events() {
+    local merged_json="$1"
+    local latest="${LATEST_SEEN_MS}"
+
+    while IFS=$'\t' read -r event_id timestamp_ms component message; do
+        local formatted_timestamp
+
+        [[ -n "${event_id}" && "${event_id}" != "null" ]] || continue
+
+        if grep -Fqx "${event_id}" "${SEEN_EVENT_IDS_FILE}"; then
+            continue
+        fi
+        printf '%s\n' "${event_id}" >> "${SEEN_EVENT_IDS_FILE}"
+        formatted_timestamp="$(format_timestamp "${timestamp_ms}")"
+
+        if ! printf '%s %s: %s\n' "${formatted_timestamp}" "${component}" "${message}" 2>/dev/null; then
+            exit 0
+        fi
+
+        if (( timestamp_ms > latest )); then
+            latest="${timestamp_ms}"
+        fi
+    done < <(jq -r '.[] | [.event_id, (.timestamp | tostring), .component, (.message | gsub("\n"; "\\n"))] | @tsv' <<<"${merged_json}")
+
+    LATEST_SEEN_MS="${latest}"
+}
+
+read_logs_since() {
+    local start_ms="$1"
+    jq -s 'add | sort_by(.timestamp, .component, .event_id)' \
+        <(fetch_events "${CADDY_LOG_GROUP}" "caddy" "${start_ms}") \
+        <(fetch_events "${WEB_LOG_GROUP}" "web" "${start_ms}") \
+        <(fetch_events "${WORKER_LOG_GROUP}" "worker" "${start_ms}")
+}
+
+merged_event_count() {
+    local merged_json="$1"
+    jq 'length' <<<"${merged_json}"
+}
+
+START_MS="$(( $(now_ms) - (LOOKBACK_SECONDS * 1000) ))"
+LATEST_SEEN_MS="${START_MS}"
+
+INITIAL_MERGED="$(read_logs_since "${START_MS}")"
+
+if [[ "$(merged_event_count "${INITIAL_MERGED}")" == "0" ]]; then
+    if [[ "${TAIL}" == "true" ]]; then
+        echo "No caddy/web/worker logs found in the last ${LOOKBACK_SECONDS} seconds. Waiting for new logs..." >&2
+    else
+        echo "No caddy/web/worker logs found in the last ${LOOKBACK_SECONDS} seconds." >&2
+    fi
+fi
+
+print_merged_events "${INITIAL_MERGED}"
+
+if [[ "${TAIL}" != "true" ]]; then
+    exit 0
+fi
+
+while true; do
+    sleep "${POLL_SECONDS}"
+    POLL_START_MS="$((LATEST_SEEN_MS > 1000 ? LATEST_SEEN_MS - 1000 : 0))"
+    MERGED="$(read_logs_since "${POLL_START_MS}")"
+    print_merged_events "${MERGED}"
+done

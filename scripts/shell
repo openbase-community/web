@@ -1,0 +1,205 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ $# -lt 1 || $# -gt 3 ]]; then
+    echo "Usage: $(basename "$0") <stack-name> [environment] [task-definition-arn]" >&2
+    exit 2
+fi
+
+STACK_NAME="$1"
+ENVIRONMENT="${2:-dev}"
+TASK_DEFINITION_ARN="${3:-}"
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/_aws_common.sh
+source "${SCRIPT_DIR}/_aws_common.sh"
+
+require_commands aws jq terraform session-manager-plugin
+"${SCRIPT_DIR}/ensure_terraform_state" >/dev/null
+terraform_init "${STACK_NAME}" "${ENVIRONMENT}"
+
+CLUSTER_NAME="$(terraform_output_raw cluster_name)"
+WEB_SERVICE_NAME="$(terraform_output_raw web_service_name)"
+
+if [[ -z "${TASK_DEFINITION_ARN}" ]]; then
+    TASK_DEFINITION_ARN="$(current_service_task_definition "${CLUSTER_NAME}" "${WEB_SERVICE_NAME}")"
+fi
+
+SHELL_BIN="${ECS_SHELL_BIN:-/bin/sh}"
+SHELL_TASK_MEMORY="${ECS_SHELL_TASK_MEMORY:-256}"
+
+echo "Preparing one-off shell task for ${STACK_NAME}/${ENVIRONMENT}..."
+
+register_shell_task_definition() {
+    local base_task_definition="$1"
+    local describe_file
+    local register_file
+
+    describe_file="$(mktemp "${TMPDIR:-/tmp}/api-core-shell-task.describe.XXXXXX.json")"
+    register_file="$(mktemp "${TMPDIR:-/tmp}/api-core-shell-task.register.XXXXXX.json")"
+
+    aws ecs describe-task-definition \
+        --task-definition "${base_task_definition}" \
+        --query 'taskDefinition' \
+        --output json > "${describe_file}"
+
+    jq \
+        --arg shell_bin "${SHELL_BIN}" \
+        --argjson shell_task_memory "${SHELL_TASK_MEMORY}" \
+        '{
+            family,
+            taskRoleArn,
+            executionRoleArn,
+            networkMode,
+            containerDefinitions: (
+                .containerDefinitions |
+                map(
+                    if .name == "web" then
+                        .command = [$shell_bin, "-lc", "trap : TERM INT; sleep infinity & wait"] |
+                        .memory = $shell_task_memory |
+                        .portMappings = []
+                    else
+                        .
+                    end
+                )
+            ),
+            volumes,
+            placementConstraints,
+            requiresCompatibilities,
+            cpu,
+            memory,
+            pidMode,
+            ipcMode,
+            proxyConfiguration,
+            inferenceAccelerators,
+            ephemeralStorage,
+            runtimePlatform
+        } | with_entries(select(.value != null))' \
+        "${describe_file}" > "${register_file}"
+
+    aws ecs register-task-definition \
+        --cli-input-json "file://${register_file}" \
+        --query 'taskDefinition.taskDefinitionArn' \
+        --output text
+
+    rm -f "${describe_file}" "${register_file}"
+}
+
+SHELL_TASK_DEFINITION_ARN="$(register_shell_task_definition "${TASK_DEFINITION_ARN}")"
+
+echo "Registered temporary task definition ${SHELL_TASK_DEFINITION_ARN##*/}"
+
+RUN_TASK_RESPONSE="$(
+    aws ecs run-task \
+        --cluster "${CLUSTER_NAME}" \
+        --launch-type EC2 \
+        --enable-execute-command \
+        --task-definition "${SHELL_TASK_DEFINITION_ARN}" \
+        --placement-constraints 'type=memberOf,expression=attribute:role == web' \
+        --output json
+)"
+
+TASK_ARN="$(jq -r '.tasks[0].taskArn // empty' <<<"${RUN_TASK_RESPONSE}")"
+
+if [[ -z "${TASK_ARN}" ]]; then
+    FAILURE_SUMMARY="$(jq -r '[.failures[]? | "\(.arn // "unknown"): \(.reason // "unknown") (\(.detail // "no detail"))"] | join("; ")' <<<"${RUN_TASK_RESPONSE}")"
+    fail "Failed to start shell task: ${FAILURE_SUMMARY:-unknown ECS error}"
+fi
+
+echo "Started shell task ${TASK_ARN##*/}"
+
+cleanup() {
+    aws ecs stop-task \
+        --cluster "${CLUSTER_NAME}" \
+        --task "${TASK_ARN}" \
+        --reason "Interactive shell session ended" >/dev/null 2>&1 || true
+    aws ecs deregister-task-definition \
+        --task-definition "${SHELL_TASK_DEFINITION_ARN}" >/dev/null 2>&1 || true
+}
+
+trap cleanup EXIT INT TERM
+
+echo "Waiting for task to reach RUNNING..."
+
+TASK_RUNNING=false
+
+for _ in $(seq 1 30); do
+    TASK_STATUS="$(
+        aws ecs describe-tasks \
+            --cluster "${CLUSTER_NAME}" \
+            --tasks "${TASK_ARN}" \
+            --query 'tasks[0].lastStatus' \
+            --output text
+    )"
+
+    case "${TASK_STATUS}" in
+        RUNNING)
+            TASK_RUNNING=true
+            break
+            ;;
+        STOPPED)
+            STOPPED_REASON="$(
+                aws ecs describe-tasks \
+                    --cluster "${CLUSTER_NAME}" \
+                    --tasks "${TASK_ARN}" \
+                    --query 'tasks[0].stoppedReason' \
+                    --output text
+            )"
+            fail "Shell task stopped before it reached RUNNING: ${STOPPED_REASON}"
+            ;;
+        *)
+            echo "  task status: ${TASK_STATUS}"
+            sleep 2
+            ;;
+    esac
+done
+
+if [[ "${TASK_RUNNING}" != "true" ]]; then
+    fail "Shell task did not reach RUNNING within 60 seconds"
+fi
+
+echo "Task is RUNNING. Waiting for ECS Exec agent..."
+
+for _ in $(seq 1 60); do
+    TASK_DETAILS="$(
+        aws ecs describe-tasks \
+            --cluster "${CLUSTER_NAME}" \
+            --tasks "${TASK_ARN}" \
+            --output json
+    )"
+
+    TASK_STATUS="$(jq -r '.tasks[0].lastStatus // empty' <<<"${TASK_DETAILS}")"
+    CONTAINER_STATUS="$(jq -r '.tasks[0].containers[]? | select(.name=="web") | .lastStatus // empty' <<<"${TASK_DETAILS}")"
+    AGENT_STATUS="$(jq -r '.tasks[0].containers[]? | select(.name=="web") | .managedAgents[]? | select(.name=="ExecuteCommandAgent") | .lastStatus' <<<"${TASK_DETAILS}" | head -n1)"
+    AGENT_REASON="$(jq -r '.tasks[0].containers[]? | select(.name=="web") | .managedAgents[]? | select(.name=="ExecuteCommandAgent") | .reason // empty' <<<"${TASK_DETAILS}" | head -n1)"
+
+    if [[ "${AGENT_STATUS}" == "RUNNING" ]]; then
+        break
+    fi
+
+    if [[ "${TASK_STATUS}" == "STOPPED" || "${CONTAINER_STATUS}" == "STOPPED" ]]; then
+        STOPPED_REASON="$(jq -r '.tasks[0].stoppedReason // "unknown stop reason"' <<<"${TASK_DETAILS}")"
+        fail "Shell task stopped before ECS Exec became ready: ${STOPPED_REASON}"
+    fi
+
+    if [[ -n "${AGENT_REASON}" ]]; then
+        echo "  exec agent status: ${AGENT_STATUS:-None} (${AGENT_REASON})"
+    else
+        echo "  exec agent status: ${AGENT_STATUS:-None}"
+    fi
+    sleep 2
+done
+
+if [[ "${AGENT_STATUS:-}" != "RUNNING" ]]; then
+    fail "The ECS execute-command agent did not become ready for task ${TASK_ARN} within 120 seconds"
+fi
+
+echo "Starting interactive shell on task ${TASK_ARN##*/}"
+
+aws ecs execute-command \
+    --cluster "${CLUSTER_NAME}" \
+    --task "${TASK_ARN}" \
+    --container web \
+    --interactive \
+    --command "${SHELL_BIN}"
