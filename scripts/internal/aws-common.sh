@@ -2,11 +2,13 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
+AWS_COMMON_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd -- "${AWS_COMMON_DIR}/../.." && pwd)"
 TERRAFORM_DIR="${REPO_DIR}/terraform"
+DEPLOY_DIR="${REPO_DIR}/deploy"
 AWS_REGION="${AWS_REGION:-us-east-1}"
 AWS_ACCOUNT_ID_CACHE="${AWS_ACCOUNT_ID_CACHE:-}"
+AWS_PARTITION_CACHE="${AWS_PARTITION_CACHE:-}"
 
 fail() {
     echo "Error: $*" >&2
@@ -41,6 +43,18 @@ aws_account_id() {
     printf '%s\n' "${AWS_ACCOUNT_ID_CACHE}"
 }
 
+aws_partition() {
+    if [[ -z "${AWS_PARTITION_CACHE}" ]]; then
+        AWS_PARTITION_CACHE="$(
+            aws sts get-caller-identity \
+                --query 'Arn' \
+                --output text | cut -d: -f2
+        )"
+    fi
+
+    printf '%s\n' "${AWS_PARTITION_CACHE}"
+}
+
 ecr_repository_name() {
     local stack_name="$1"
     local environment="$2"
@@ -58,6 +72,26 @@ ecr_repository_uri() {
         "$(aws_account_id)" \
         "${AWS_REGION}" \
         "$(ecr_repository_name "${stack_name}" "${environment}" "${component}")"
+}
+
+default_secret_parameter_name() {
+    local stack_name="$1"
+    local environment="$2"
+    local secret_name="$3"
+    local normalized_name
+
+    normalized_name="$(printf '%s' "${secret_name}" | tr '[:upper:]' '[:lower:]' | tr '_' '-')"
+    printf '/%s/%s/%s\n' "${stack_name}" "${environment}" "${normalized_name}"
+}
+
+ssm_parameter_arn() {
+    local parameter_name="$1"
+
+    printf 'arn:%s:ssm:%s:%s:parameter/%s\n' \
+        "$(aws_partition)" \
+        "${AWS_REGION}" \
+        "$(aws_account_id)" \
+        "${parameter_name#/}"
 }
 
 ensure_ecr_repository() {
@@ -138,6 +172,94 @@ tfvars_file_for_environment() {
     printf '%s/%s.tfvars\n' "${TERRAFORM_DIR}" "${environment}"
 }
 
+ensure_deploy_dir() {
+    mkdir -p "${DEPLOY_DIR}"
+}
+
+deploy_config_file_for_environment() {
+    local environment="$1"
+    printf '%s/%s.env\n' "${DEPLOY_DIR}" "${environment}"
+}
+
+require_deploy_config_file() {
+    local environment="$1"
+    local deploy_config_file
+
+    deploy_config_file="$(deploy_config_file_for_environment "${environment}")"
+    [[ -f "${deploy_config_file}" ]] || fail "Missing deploy config file: ${deploy_config_file}"
+    printf '%s\n' "${deploy_config_file}"
+}
+
+deploy_config_value() {
+    local environment="$1"
+    local key="$2"
+    local deploy_config_file
+
+    deploy_config_file="$(require_deploy_config_file "${environment}")"
+
+    (
+        # shellcheck source=/dev/null
+        source "${deploy_config_file}"
+        printf '%s\n' "${!key:-}"
+    )
+}
+
+require_deploy_config_value() {
+    local environment="$1"
+    local key="$2"
+    local value
+
+    value="$(deploy_config_value "${environment}" "${key}")"
+    [[ -n "${value}" ]] || fail "Missing ${key} in $(deploy_config_file_for_environment "${environment}")"
+    printf '%s\n' "${value}"
+}
+
+set_deploy_config_value() {
+    local environment="$1"
+    local key="$2"
+    local value="$3"
+    local deploy_config_file
+
+    ensure_deploy_dir
+    deploy_config_file="$(deploy_config_file_for_environment "${environment}")"
+
+    python3 - "${deploy_config_file}" "${key}" "${value}" <<'PY'
+from __future__ import annotations
+
+from pathlib import Path
+import re
+import shlex
+import sys
+
+
+path = Path(sys.argv[1])
+key = sys.argv[2]
+value = sys.argv[3]
+line = f"{key}={shlex.quote(value)}"
+
+if path.exists():
+    lines = path.read_text().splitlines()
+else:
+    lines = [
+        "# Untracked per-environment deploy inputs for build and rollout.",
+        "",
+    ]
+
+pattern = re.compile(rf"^{re.escape(key)}=")
+
+for idx, existing in enumerate(lines):
+    if pattern.match(existing):
+        lines[idx] = line
+        break
+else:
+    if lines and lines[-1].strip():
+        lines.append("")
+    lines.append(line)
+
+path.write_text("\n".join(lines) + "\n")
+PY
+}
+
 require_tfvars_file() {
     local environment="$1"
     local tfvars_file
@@ -190,6 +312,24 @@ terraform_init() {
     rm -f "${backend_file}"
 }
 
+terraform_apply_task_definitions_with_image() {
+    local stack_name="$1"
+    local environment="$2"
+    local image_uri="$3"
+    local tfvars_file
+
+    tfvars_file="$(require_tfvars_file "${environment}")"
+
+    terraform -chdir="${TERRAFORM_DIR}" apply \
+        -auto-approve \
+        -target=aws_ecs_task_definition.web \
+        -target=aws_ecs_task_definition.worker \
+        -var-file="${tfvars_file}" \
+        -var "name=${stack_name}" \
+        -var "environment=${environment}" \
+        -var "app_image=${image_uri}"
+}
+
 terraform_output_raw() {
     local output_name="$1"
 
@@ -215,6 +355,29 @@ current_service_task_definition() {
         --services "${service_name}" \
         --query 'services[0].taskDefinition' \
         --output text
+}
+
+task_definition_container_image() {
+    local task_definition_arn="$1"
+    local container_name="$2"
+
+    aws ecs describe-task-definition \
+        --task-definition "${task_definition_arn}" \
+        --query 'taskDefinition.containerDefinitions' \
+        --output json | jq -r \
+        --arg container_name "${container_name}" \
+        '.[] | select(.name == $container_name) | .image'
+}
+
+image_tag_from_reference() {
+    local image_reference="$1"
+
+    if [[ "${image_reference}" == *@* ]]; then
+        fail "Expected an image tag reference, got digest-pinned image: ${image_reference}"
+    fi
+
+    [[ "${image_reference}" == *:* ]] || fail "Could not determine image tag from reference: ${image_reference}"
+    printf '%s\n' "${image_reference##*:}"
 }
 
 task_definition_family() {

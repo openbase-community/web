@@ -99,8 +99,8 @@ data "aws_iam_policy_document" "app_bucket_access" {
     ]
 
     resources = [
-      aws_s3_bucket.app.arn,
-      "${aws_s3_bucket.app.arn}/*",
+      module.foundation.bucket_arn,
+      "${module.foundation.bucket_arn}/*",
     ]
   }
 }
@@ -164,8 +164,8 @@ resource "aws_ecs_cluster" "main" {
 resource "aws_instance" "web" {
   ami                    = data.aws_ssm_parameter.ecs_ami.value
   instance_type          = var.web_instance_type
-  subnet_id              = aws_subnet.public["0"].id
-  vpc_security_group_ids = [aws_security_group.web_instance.id]
+  subnet_id              = module.foundation.public_subnet_ids[0]
+  vpc_security_group_ids = [module.foundation.web_instance_security_group_id]
   iam_instance_profile   = aws_iam_instance_profile.ecs.name
 
   user_data = templatefile("${path.module}/templates/web_user_data.sh.tftpl", {
@@ -193,8 +193,8 @@ resource "aws_eip" "web" {
 resource "aws_instance" "worker" {
   ami                    = data.aws_ssm_parameter.ecs_ami.value
   instance_type          = var.worker_instance_type
-  subnet_id              = aws_subnet.public["1"].id
-  vpc_security_group_ids = [aws_security_group.worker_instance.id]
+  subnet_id              = module.foundation.public_subnet_ids[1]
+  vpc_security_group_ids = [module.foundation.worker_instance_security_group_id]
   iam_instance_profile   = aws_iam_instance_profile.ecs.name
 
   user_data = <<-EOT
@@ -247,7 +247,7 @@ resource "aws_ecs_task_definition" "web" {
         }
       ]
       secrets = [
-        for key, value in local.web_secrets : {
+        for key, value in local.ecs_secrets : {
           name      = key
           valueFrom = value
         }
@@ -295,7 +295,7 @@ resource "aws_ecs_task_definition" "worker" {
         }
       ]
       secrets = [
-        for key, value in local.worker_secrets : {
+        for key, value in local.ecs_secrets : {
           name      = key
           valueFrom = value
         }

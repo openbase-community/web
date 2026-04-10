@@ -2,20 +2,64 @@
 
 set -euo pipefail
 
-if [[ $# -lt 2 || $# -gt 4 ]]; then
-    echo "Usage: $(basename "$0") <stack-name> <app-requirements> [environment] [image-tag]" >&2
+usage() {
+    cat <<'EOF' >&2
+Usage: build <stack-name> [app-requirements] [environment] [image-tag]
+
+Examples:
+  ./scripts/build openbase-api-core "https://github.com/openbase-community/openbase-cloud-api" prod
+  ./scripts/build openbase-api-core prod
+
+If app-requirements is omitted, the command reads APP_REQUIREMENTS from deploy/<environment>.env.
+EOF
     exit 2
+}
+
+looks_like_app_requirements() {
+    local value="$1"
+    [[ "${value}" == *"://"* || "${value}" == git+* || "${value}" == *","* || "${value}" == */* ]]
+}
+
+if [[ $# -lt 1 || $# -gt 4 ]]; then
+    usage
 fi
 
 STACK_NAME="$1"
-APP_REQUIREMENTS="${2:-${APP_REQUIREMENTS:-}}"
-ENVIRONMENT="${3:-dev}"
+shift
+ENVIRONMENT="dev"
+APP_REQUIREMENTS_INPUT="${APP_REQUIREMENTS:-}"
+
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/internal/aws-common.sh
 source "${SCRIPT_DIR}/internal/aws-common.sh"
 
-IMAGE_TAG="${4:-${IMAGE_TAG:-$(generated_image_tag)}}"
+if [[ $# -gt 0 ]]; then
+    if looks_like_app_requirements "$1"; then
+        APP_REQUIREMENTS_INPUT="$1"
+        shift
+    elif [[ -f "$(deploy_config_file_for_environment "$1")" ]]; then
+        ENVIRONMENT="$1"
+        shift
+    elif [[ -z "${APP_REQUIREMENTS_INPUT}" ]]; then
+        APP_REQUIREMENTS_INPUT="$1"
+        shift
+    fi
+fi
+
+if [[ $# -gt 0 ]]; then
+    ENVIRONMENT="$1"
+    shift
+fi
+
+IMAGE_TAG="${1:-${IMAGE_TAG:-$(generated_image_tag)}}"
+if [[ $# -gt 1 ]]; then
+    exit 2
+fi
 APP_IMAGE_REPOSITORY="$(ecr_repository_uri "${STACK_NAME}" "${ENVIRONMENT}" "app")"
+
+if [[ -z "${APP_REQUIREMENTS_INPUT}" ]]; then
+    APP_REQUIREMENTS_INPUT="$(require_deploy_config_value "${ENVIRONMENT}" "APP_REQUIREMENTS")"
+fi
 
 require_commands aws docker git sed uv
 ensure_ecr_repository "${STACK_NAME}" "${ENVIRONMENT}" "app"
@@ -38,18 +82,23 @@ cd "${REPO_DIR}"
 
 cleanup
 
-printf '%s' "${APP_REQUIREMENTS}" | tr ',' '\n' | while IFS= read -r requirement; do
+CANONICAL_APP_REQUIREMENTS=()
+
+while IFS= read -r requirement; do
     requirement="${requirement#"${requirement%%[![:space:]]*}"}"
     requirement="${requirement%"${requirement##*[![:space:]]}"}"
     if [[ -z "${requirement}" ]]; then
         continue
     fi
     if [[ "${requirement}" == https://github.com/* ]]; then
-        printf 'git+%s\n' "${requirement}"
-    else
-        printf '%s\n' "${requirement}"
+        requirement="git+${requirement}"
     fi
-done > "${PRIVATE_GITHUB_REPOS_TMP}"
+    CANONICAL_APP_REQUIREMENTS+=("${requirement}")
+done < <(printf '%s' "${APP_REQUIREMENTS_INPUT}" | tr ',' '\n')
+
+[[ ${#CANONICAL_APP_REQUIREMENTS[@]} -gt 0 ]] || fail "No app requirements provided. Pass them explicitly or set APP_REQUIREMENTS in $(deploy_config_file_for_environment "${ENVIRONMENT}")"
+
+printf '%s\n' "${CANONICAL_APP_REQUIREMENTS[@]}" > "${PRIVATE_GITHUB_REPOS_TMP}"
 
 date > "${NOCACHE_TMP}"
 
@@ -72,5 +121,10 @@ docker buildx build \
 
 rm -f "${DOCKERFILE_TMP}"
 
+set_deploy_config_value "${ENVIRONMENT}" "APP_REQUIREMENTS" "$(IFS=,; printf '%s' "${CANONICAL_APP_REQUIREMENTS[*]}")"
+set_deploy_config_value "${ENVIRONMENT}" "IMAGE_TAG" "${IMAGE_TAG}"
+
 echo "Built and pushed:"
 echo "  ${APP_IMAGE_REPOSITORY}:${IMAGE_TAG}"
+echo "Updated deploy config:"
+echo "  $(deploy_config_file_for_environment "${ENVIRONMENT}")"

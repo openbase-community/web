@@ -24,6 +24,7 @@ Non-interactive setup behavior:
 ## Production Deployment Scripts
 
 The `scripts/` directory is now oriented around Terraform + ECS on AWS instead of Heroku.
+The reusable AWS foundation Terraform now lives in the sibling `infra` repo, while `api-core/terraform` keeps the app-specific ECS and Cloudflare layer.
 
 Environment prerequisites:
 
@@ -37,23 +38,30 @@ Typical flow:
 
 1. Create a local Terraform vars file:
    `./scripts/new-deployment <stack-name> [environment]`
-2. Build and push the shared app image:
-   `./scripts/build <stack-name> "<app-requirements>" [environment] [image-tag]`
-   `app-requirements` is required so `api-core` stays agnostic about which application package(s) you install into the image.
+2. Set `APP_REQUIREMENTS` in `deploy/<environment>.env`.
+   That untracked deploy manifest is the source of truth for the private app package list and the currently intended image tag.
+3. Build and push the shared app image:
+   `./scripts/build <stack-name> [app-requirements] [environment] [image-tag]`
+   If `app-requirements` is omitted, build reads `APP_REQUIREMENTS` from `deploy/<environment>.env`.
    If `image-tag` is omitted, the build generates a UTC timestamp tag automatically.
-3. Apply infrastructure:
+   After a successful push, build updates `deploy/<environment>.env` with the canonical `APP_REQUIREMENTS` and the new `IMAGE_TAG`.
+4. Apply infrastructure:
    `./scripts/infra-apply <stack-name> [environment] [image-tag]`
-4. Issue the Cloudflare Origin CA cert and reload Caddy:
+   If `image-tag` is omitted, infra apply uses `IMAGE_TAG` from `deploy/<environment>.env`.
+5. Issue the Cloudflare Origin CA cert and reload Caddy:
    `./scripts/cloudflare-setup <stack-name> [environment]`
-5. Deploy both ECS services together:
+6. Deploy both ECS services together:
    `./scripts/deploy <stack-name> [environment] [image-tag]`
-   If `image-tag` is omitted, deploy picks the most recently pushed non-`latest` app image tag from ECR.
-6. Roll back both ECS services together if needed:
+   If `image-tag` is omitted, deploy uses `IMAGE_TAG` from `deploy/<environment>.env`.
+7. Roll back both ECS services together if needed:
    `./scripts/rollback-deployment <stack-name> [environment]`
-7. Open an interactive one-off shell in the web image:
+8. Open an interactive one-off shell in the web image:
    `./scripts/cloud-shell <stack-name> [environment]`
-8. View merged CloudWatch logs across web, worker, and host-level Caddy access logs:
+9. View merged CloudWatch logs across web, worker, and host-level Caddy access logs:
    `./scripts/cloud-logs <stack-name> [environment] [--tail] [--lines <count>]`
+10. Set or unset shared ECS secrets in SSM + tfvars:
+   `./scripts/cloud-config set <stack-name> <environment> <env-var> [value]`
+   `./scripts/cloud-config unset <stack-name> <environment> <env-var>`
 
 Only the top-level commands in `scripts/` are intended as operator entrypoints. Internal helper scripts live under `scripts/internal/`.
 `./scripts/deploy` always updates `web` and `worker` in the same release, using the same application image for both task definitions, and runs database migrations before shifting the services.
@@ -61,3 +69,38 @@ Only the top-level commands in `scripts/` are intended as operator entrypoints. 
 `./scripts/cloud-logs` reads `/web`, `/worker`, and `/caddy` CloudWatch log groups, merges them by timestamp, and can either show recent logs or keep polling with `--tail`. Use `--lines <count>` if you want the last N merged log lines instead of a fixed time window.
 The S3/CDN bucket CORS policy is Terraform-managed; by default it allows the configured `web_hostname` origin to fetch assets, and you can extend that with `frontend_cors_allowed_origins` in your tfvars file.
 Cloudflare DNS for `web_hostname` / `cdn_hostname` and the CDN flexible-SSL config rule are Terraform-managed; `./scripts/cloudflare-setup` now only handles Origin CA certificate issuance and host reload.
+
+## Adding an Environment Variable
+
+Environment variables for ECS are configured through your untracked `terraform/<environment>.tfvars` file:
+
+- Use `common_secrets` for all operator-managed app config values. `web` and `worker` always receive the same set through ECS secret injection.
+- Terraform still injects infrastructure-derived values like database host, Redis host, bucket names, ports, and `ALLOWED_HOSTS` as plain environment variables.
+
+For operator-managed app config, use `./scripts/cloud-config`. It always writes to `common_secrets`, so both `web` and `worker` get the same config set through SSM.
+
+```bash
+./scripts/cloud-config set openbase-api-core prod STRIPE_SECRET_KEY --from-heroku openbase
+```
+
+That one command:
+
+- reads the config value from Heroku
+- writes it to SSM Parameter Store at `/<stack-name>/<environment>/<lowercase-secret-name>`
+- updates `common_secrets` in tfvars with the parameter ARN
+- formats the tfvars file
+- reapplies the ECS task definitions in Terraform and redeploys ECS using `IMAGE_TAG` from `deploy/<environment>.env`
+
+You can also pipe a generated or local value into it:
+
+```bash
+openssl rand -base64 32 | ./scripts/cloud-config set openbase-api-core prod DJANGO_SECRET_KEY
+```
+
+To remove a shared config value from tfvars and delete its SSM parameter:
+
+```bash
+./scripts/cloud-config unset openbase-api-core prod STRIPE_SECRET_KEY
+```
+
+Use `--no-redeploy` only if you want to stage the config change without immediately rolling ECS.

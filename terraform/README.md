@@ -1,6 +1,6 @@
 # Terraform
 
-This directory provisions a low-cost AWS baseline for `api-core`:
+This directory provisions the app-specific deployment layer for `api-core`, on top of the shared AWS foundation module in the sibling `infra` repo:
 
 - ECS on EC2 with:
   - one `t3.small` web host
@@ -14,10 +14,10 @@ This directory provisions a low-cost AWS baseline for `api-core`:
 
 - `backend.tf`: partial remote-state backend declaration
 - `versions.tf`: Terraform and provider constraints
-- `networking.tf`: VPC, subnets, routes, and security groups
+- `foundation.tf`: shared AWS foundation module call from `../../infra`
 - `ecs.tf`: IAM, ECS cluster, EC2 instances, ECS services, and the web Elastic IP
-- `database.tf`: RDS PostgreSQL and ElastiCache Redis
-- `storage.tf`: S3 bucket and website hosting
+- `cloudflare.tf`: Cloudflare DNS records and CDN rules
+- `moved.tf`: state migrations from the old in-repo AWS resources into the shared module
 
 ## Defaults
 
@@ -119,9 +119,44 @@ You asked not to commit lockfiles here, so `.terraform.lock.hcl` is ignored in t
 
 1. Copy `terraform.tfvars.example` to a local `.tfvars` file that stays untracked.
 2. Set `web_hostname`, `app_image`, and secret/parameter names.
-3. Initialize Terraform with the remote backend config.
-4. Run `terraform plan`.
-5. Run `terraform apply`.
+   Build inputs like `APP_REQUIREMENTS` and the intended `IMAGE_TAG` live in `deploy/<environment>.env`, not in Terraform.
+3. Ensure the sibling `infra` repo is present in the workspace, since `foundation.tf` uses a local module source at `../../infra/terraform/modules/aws-app-foundation`.
+4. Initialize Terraform with the remote backend config.
+5. Run `terraform plan`.
+6. Run `terraform apply`.
+
+## Adding Environment Variables
+
+The ECS task definitions take environment configuration from these tfvars maps:
+
+- `common_secrets`: all operator-managed app config values, shared by `web` and `worker`
+
+Terraform still injects infrastructure-derived values like database host, Redis host, ports, bucket names, and `ALLOWED_HOSTS` as plain environment variables.
+
+For operator-managed app config, use `./scripts/cloud-config`. It writes an SSM SecureString parameter and updates `common_secrets` in one step. Both `web` and `worker` always receive the same config set.
+
+Example: migrate the Stripe secret from the legacy Heroku app into prod without writing the secret into git:
+
+```bash
+./scripts/cloud-config set openbase-api-core prod STRIPE_SECRET_KEY --from-heroku openbase
+```
+
+That command writes the value to SSM at `/openbase-api-core/prod/stripe-secret-key` and updates `terraform/prod.tfvars` under `common_secrets`.
+By default it then reapplies the ECS task definitions in Terraform and redeploys ECS using `IMAGE_TAG` from `deploy/<environment>.env`.
+
+For generated or local secrets, pipe the value in:
+
+```bash
+openssl rand -base64 32 | ./scripts/cloud-config set openbase-api-core prod DJANGO_SECRET_KEY
+```
+
+To remove a shared config value from tfvars and SSM:
+
+```bash
+./scripts/cloud-config unset openbase-api-core prod STRIPE_SECRET_KEY
+```
+
+Use `--no-redeploy` only if you want to stage the config change without immediately rolling ECS.
 
 ## Notes
 

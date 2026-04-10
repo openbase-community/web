@@ -13,10 +13,6 @@ db_password = "replace-me"
 cloudflare_origin_cert_parameter_name = "/openbase-api-core/dev/cloudflare-origin-cert"
 cloudflare_origin_key_parameter_name  = "/openbase-api-core/dev/cloudflare-origin-key"
 
-common_environment = {
-  DJANGO_DEBUG = "0"
-}
-
 common_secrets = {
   DJANGO_SECRET_KEY = "arn:aws:ssm:us-east-1:123456789012:parameter/openbase/dev/django-secret-key"
 }

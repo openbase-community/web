@@ -14,7 +14,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/internal/aws-common.sh
 source "${SCRIPT_DIR}/internal/aws-common.sh"
 
-IMAGE_TAG="${3:-${IMAGE_TAG:-$(default_image_tag)}}"
+IMAGE_TAG="${3:-${IMAGE_TAG:-$(require_deploy_config_value "${ENVIRONMENT}" "IMAGE_TAG")}}"
 TFVARS_FILE="$(require_tfvars_file "${ENVIRONMENT}")"
 APP_IMAGE_URI="$(ecr_repository_uri "${STACK_NAME}" "${ENVIRONMENT}" "app"):${IMAGE_TAG}"
 

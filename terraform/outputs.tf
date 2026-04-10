@@ -35,22 +35,22 @@ output "cloudflare_origin_key_parameter_name" {
 
 output "bucket_name" {
   description = "S3 bucket used for the frontend, Django media, and Django static files."
-  value       = aws_s3_bucket.app.bucket
+  value       = module.foundation.bucket_name
 }
 
 output "bucket_website_endpoint" {
   description = "Website endpoint for the S3 bucket."
-  value       = aws_s3_bucket_website_configuration.app.website_endpoint
+  value       = module.foundation.bucket_website_endpoint
 }
 
 output "database_endpoint" {
   description = "RDS PostgreSQL endpoint."
-  value       = aws_db_instance.postgres.address
+  value       = module.foundation.database_endpoint
 }
 
 output "redis_endpoint" {
   description = "ElastiCache Redis endpoint."
-  value       = aws_elasticache_cluster.redis.cache_nodes[0].address
+  value       = module.foundation.redis_endpoint
 }
 
 output "cluster_name" {

@@ -93,6 +93,58 @@ format_timestamp() {
     date -r "$((timestamp_ms / 1000))" '+%Y-%m-%d %H:%M:%S'
 }
 
+decode_base64_message() {
+    local encoded_message="$1"
+
+    python3 - "$encoded_message" <<'PY'
+import base64
+import sys
+
+print(base64.b64decode(sys.argv[1]).decode("utf-8"), end="")
+PY
+}
+
+pretty_format_message() {
+    local message="$1"
+
+    python3 - "$message" <<'PY'
+import json
+import sys
+
+message = sys.argv[1]
+
+try:
+    parsed = json.loads(message)
+except json.JSONDecodeError:
+    print(message, end="")
+    raise SystemExit(0)
+
+if isinstance(parsed, (dict, list)):
+    print(json.dumps(parsed, indent=2), end="")
+else:
+    print(message, end="")
+PY
+}
+
+print_rendered_message() {
+    local formatted_timestamp="$1"
+    local component="$2"
+    local message="$3"
+    local pretty_message
+
+    pretty_message="$(pretty_format_message "${message}")"
+
+    if [[ "${pretty_message}" == *$'\n'* ]]; then
+        printf '%s %s:\n' "${formatted_timestamp}" "${component}" || exit 0
+        while IFS= read -r line; do
+            printf '  %s\n' "${line}" || exit 0
+        done <<< "${pretty_message}"
+        return
+    fi
+
+    printf '%s %s: %s\n' "${formatted_timestamp}" "${component}" "${pretty_message}" || exit 0
+}
+
 fetch_events() {
     local log_group="$1"
     local component="$2"
@@ -118,8 +170,9 @@ print_merged_events() {
     local merged_json="$1"
     local latest="${LATEST_SEEN_MS}"
 
-    while IFS=$'\t' read -r event_id timestamp_ms component message; do
+    while IFS=$'\t' read -r event_id timestamp_ms component message_b64; do
         local formatted_timestamp
+        local message
 
         [[ -n "${event_id}" && "${event_id}" != "null" ]] || continue
 
@@ -128,15 +181,14 @@ print_merged_events() {
         fi
         printf '%s\n' "${event_id}" >> "${SEEN_EVENT_IDS_FILE}"
         formatted_timestamp="$(format_timestamp "${timestamp_ms}")"
+        message="$(decode_base64_message "${message_b64}")"
 
-        if ! printf '%s %s: %s\n' "${formatted_timestamp}" "${component}" "${message}" 2>/dev/null; then
-            exit 0
-        fi
+        print_rendered_message "${formatted_timestamp}" "${component}" "${message}"
 
         if (( timestamp_ms > latest )); then
             latest="${timestamp_ms}"
         fi
-    done < <(jq -r '.[] | [.event_id, (.timestamp | tostring), .component, (.message | gsub("\n"; "\\n"))] | @tsv' <<<"${merged_json}")
+    done < <(jq -r '.[] | [.event_id, (.timestamp | tostring), .component, (.message | @base64)] | @tsv' <<<"${merged_json}")
 
     LATEST_SEEN_MS="${latest}"
 }
@@ -172,7 +224,7 @@ read_initial_logs() {
     if [[ -z "${LINE_COUNT}" ]]; then
         start_ms="$((now - (LOOKBACK_SECONDS * 1000) ))"
         LATEST_SEEN_MS="${start_ms}"
-        read_logs_since "${start_ms}"
+        INITIAL_MERGED="$(read_logs_since "${start_ms}")"
         return
     fi
 
@@ -188,7 +240,7 @@ read_initial_logs() {
 
         if (( event_count >= LINE_COUNT || current_lookback >= MAX_LOOKBACK_SECONDS )); then
             LATEST_SEEN_MS="${start_ms}"
-            tail_merged_events "${merged}" "${LINE_COUNT}"
+            INITIAL_MERGED="$(tail_merged_events "${merged}" "${LINE_COUNT}")"
             return
         fi
 
@@ -199,7 +251,9 @@ read_initial_logs() {
     done
 }
 
-INITIAL_MERGED="$(read_initial_logs)"
+LATEST_SEEN_MS=0
+INITIAL_MERGED=""
+read_initial_logs
 
 if [[ "$(merged_event_count "${INITIAL_MERGED}")" == "0" ]]; then
     if [[ "${TAIL}" == "true" ]]; then

@@ -20,7 +20,7 @@ resource "cloudflare_dns_record" "cdn" {
   zone_id = data.cloudflare_zone.main.zone_id
   name    = var.cdn_hostname
   type    = "CNAME"
-  content = aws_s3_bucket_website_configuration.app.website_endpoint
+  content = module.foundation.bucket_website_endpoint
   proxied = true
   ttl     = 1
 }

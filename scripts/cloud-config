@@ -1,0 +1,391 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage:
+  cloud-config set <stack-name> <environment> [options] <env-var>[=<value>]...
+  cloud-config unset <stack-name> <environment> [options] <env-var>...
+
+Examples:
+  ./scripts/cloud-config set openbase-api-core prod --from-heroku openbase STRIPE_SECRET_KEY HEADLESS_JWT_PRIVATE_KEY
+  ./scripts/cloud-config set openbase-api-core prod DJANGO_DEBUG=0 DJANGO_ADMIN_SUFFIX=abc123
+  printf '%s' 'super-secret' | ./scripts/cloud-config set openbase-api-core prod SOME_API_KEY
+  ./scripts/cloud-config unset openbase-api-core prod STRIPE_SECRET_KEY HEADLESS_JWT_PRIVATE_KEY
+
+Options:
+  --from-heroku <app>          Read the config value from `heroku config:get`.
+  --source-key <config-key>    Override the Heroku config key name for a single target var.
+  --parameter-name <name>      Override the default SSM parameter name.
+  --keep-parameter             With `unset`, remove the tfvars entry but keep the SSM parameter.
+  --no-redeploy                Skip the automatic infra apply + deploy after the config change.
+  -h, --help                   Show this help text.
+
+Notes:
+  - All operator-managed config values go into `common_secrets`, so both web and worker receive the same set.
+  - `set` stores the value in SSM Parameter Store as a SecureString and writes the parameter ARN into tfvars.
+  - `unset` removes the tfvars entry and deletes the SSM parameter unless `--keep-parameter` is used.
+  - By default the command reapplies the ECS task definitions and redeploys using IMAGE_TAG from deploy/<environment>.env.
+EOF
+}
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+source "${SCRIPT_DIR}/internal/aws-common.sh"
+
+update_tfvars_secret_map() {
+    local tfvars_file="$1"
+    local map_name="$2"
+    local secret_key="$3"
+    local action="$4"
+    local secret_value="${5:-}"
+
+    python3 - "$tfvars_file" "$map_name" "$secret_key" "$action" "$secret_value" <<'PY'
+from __future__ import annotations
+
+import json
+import re
+import sys
+from collections import OrderedDict
+from pathlib import Path
+
+
+path = Path(sys.argv[1])
+map_name = sys.argv[2]
+secret_key = sys.argv[3]
+action = sys.argv[4]
+secret_value = sys.argv[5]
+
+text = path.read_text()
+had_trailing_newline = text.endswith("\n")
+lines = text.splitlines()
+
+
+def find_block() -> tuple[int | None, int | None]:
+    inline_pattern = re.compile(rf"^\s*{re.escape(map_name)}\s*=\s*\{{\s*\}}\s*$")
+    start_pattern = re.compile(rf"^\s*{re.escape(map_name)}\s*=\s*\{{\s*$")
+
+    for start_idx, line in enumerate(lines):
+        if inline_pattern.match(line):
+            return start_idx, start_idx
+
+        if not start_pattern.match(line):
+            continue
+
+        depth = 0
+        for end_idx in range(start_idx, len(lines)):
+            depth += lines[end_idx].count("{")
+            depth -= lines[end_idx].count("}")
+            if depth == 0:
+                return start_idx, end_idx
+
+        raise SystemExit(f"Unterminated map block for {map_name} in {path}")
+
+    return None, None
+
+
+def parse_entries(block_lines: list[str]) -> "OrderedDict[str, str]":
+    entries: "OrderedDict[str, str]" = OrderedDict()
+    entry_pattern = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+?)\s*$")
+
+    for raw_line in block_lines:
+        line = raw_line.strip()
+        if not line or line.startswith("#") or line.startswith("//"):
+            continue
+
+        match = entry_pattern.match(raw_line)
+        if match:
+            entries[match.group(1)] = match.group(2)
+
+    return entries
+
+
+def render_block(entries: "OrderedDict[str, str]") -> list[str]:
+    if not entries:
+        return [f"{map_name} = {{}}"]
+
+    rendered = [f"{map_name} = {{"]
+    for key, value in entries.items():
+        rendered.append(f"  {key} = {value}")
+    rendered.append("}")
+    return rendered
+
+
+start_idx, end_idx = find_block()
+
+if start_idx is None:
+    if action == "unset":
+        raise SystemExit(0)
+
+    new_block = render_block(OrderedDict([(secret_key, json.dumps(secret_value))]))
+    if lines and lines[-1].strip():
+        lines.append("")
+    lines.extend(new_block)
+else:
+    if start_idx == end_idx:
+        entries = OrderedDict()
+    else:
+        entries = parse_entries(lines[start_idx + 1 : end_idx])
+
+    if action == "set":
+        entries[secret_key] = json.dumps(secret_value)
+    elif action == "unset":
+        entries.pop(secret_key, None)
+    else:
+        raise SystemExit(f"Unknown action: {action}")
+
+    new_block = render_block(entries)
+    lines = lines[:start_idx] + new_block + lines[end_idx + 1 :]
+
+new_text = "\n".join(lines)
+if lines and (had_trailing_newline or not new_text.endswith("\n")):
+    new_text += "\n"
+
+path.write_text(new_text)
+PY
+}
+
+read_config_value() {
+    local env_var_name="$1"
+    local source_key="${2:-$1}"
+    local config_value=""
+
+    if [[ -n "${HEROKU_APP}" ]]; then
+        require_commands heroku
+        config_value="$(heroku config:get "${source_key}" --app "${HEROKU_APP}")"
+    elif [[ ! -t 0 ]]; then
+        config_value="$(cat)"
+    else
+        read -r -s -p "Enter value for ${env_var_name}: " config_value
+        printf '\n' >&2
+    fi
+
+    [[ -n "${config_value}" ]] || fail "Value for ${env_var_name} is empty"
+    printf '%s' "${config_value}"
+}
+
+SUBCOMMAND="${1:-}"
+if [[ -z "${SUBCOMMAND}" ]]; then
+    usage >&2
+    exit 2
+fi
+shift
+
+case "${SUBCOMMAND}" in
+    set|unset) ;;
+    -h|--help)
+        usage
+        exit 0
+        ;;
+    *)
+        fail "Unknown subcommand: ${SUBCOMMAND}"
+        ;;
+esac
+
+if [[ $# -lt 3 ]]; then
+    usage >&2
+    exit 2
+fi
+
+STACK_NAME="$1"
+ENVIRONMENT="$2"
+shift 2
+
+PARAMETER_NAME=""
+KEEP_PARAMETER=false
+REDEPLOY=true
+HEROKU_APP=""
+SOURCE_KEY=""
+POSITIONAL_ITEMS=()
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --from-heroku)
+            shift
+            [[ $# -gt 0 ]] || fail "Missing value for --from-heroku"
+            HEROKU_APP="$1"
+            shift
+            ;;
+        --source-key)
+            shift
+            [[ $# -gt 0 ]] || fail "Missing value for --source-key"
+            SOURCE_KEY="$1"
+            shift
+            ;;
+        --parameter-name)
+            shift
+            [[ $# -gt 0 ]] || fail "Missing value for --parameter-name"
+            PARAMETER_NAME="$1"
+            shift
+            ;;
+        --keep-parameter)
+            KEEP_PARAMETER=true
+            shift
+            ;;
+        --no-redeploy)
+            REDEPLOY=false
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -*)
+            fail "Unknown option: $1"
+            ;;
+        *)
+            POSITIONAL_ITEMS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+[[ ${#POSITIONAL_ITEMS[@]} -gt 0 ]] || {
+    usage >&2
+    exit 2
+}
+
+if [[ "${SUBCOMMAND}" == "unset" && -n "${HEROKU_APP}" ]]; then
+    fail "--from-heroku is only valid with the set subcommand"
+fi
+
+MAP_NAME="common_secrets"
+TFVARS_FILE="$(require_tfvars_file "${ENVIRONMENT}")"
+
+require_commands aws python3 terraform
+
+SET_NAMES=()
+SET_VALUES=()
+SET_PARAMETER_NAMES=()
+UNSET_NAMES=()
+UNSET_PARAMETER_NAMES=()
+
+if [[ "${SUBCOMMAND}" == "set" ]]; then
+    if [[ -n "${HEROKU_APP}" ]]; then
+        [[ -z "${PARAMETER_NAME}" || ${#POSITIONAL_ITEMS[@]} -eq 1 ]] || fail "--parameter-name only supports a single target variable"
+        [[ -z "${SOURCE_KEY}" || ${#POSITIONAL_ITEMS[@]} -eq 1 ]] || fail "--source-key only supports a single target variable"
+
+        for env_var_name in "${POSITIONAL_ITEMS[@]}"; do
+            [[ "${env_var_name}" != *=* ]] || fail "When using --from-heroku, pass target variables without '=VALUE': ${env_var_name}"
+            [[ "${env_var_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || fail "Invalid env var name: ${env_var_name}"
+            SET_NAMES+=("${env_var_name}")
+            SET_VALUES+=("$(read_config_value "${env_var_name}" "${SOURCE_KEY:-${env_var_name}}")")
+            if [[ -n "${PARAMETER_NAME}" ]]; then
+                SET_PARAMETER_NAMES+=("${PARAMETER_NAME}")
+            else
+                SET_PARAMETER_NAMES+=("$(default_secret_parameter_name "${STACK_NAME}" "${ENVIRONMENT}" "${env_var_name}")")
+            fi
+        done
+    else
+        if (( ${#POSITIONAL_ITEMS[@]} == 1 )) && [[ "${POSITIONAL_ITEMS[0]}" != *=* ]]; then
+            env_var_name="${POSITIONAL_ITEMS[0]}"
+            [[ "${env_var_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || fail "Invalid env var name: ${env_var_name}"
+            [[ -z "${SOURCE_KEY}" ]] || fail "--source-key requires --from-heroku"
+            SET_NAMES+=("${env_var_name}")
+            SET_VALUES+=("$(read_config_value "${env_var_name}")")
+            if [[ -n "${PARAMETER_NAME}" ]]; then
+                SET_PARAMETER_NAMES+=("${PARAMETER_NAME}")
+            else
+                SET_PARAMETER_NAMES+=("$(default_secret_parameter_name "${STACK_NAME}" "${ENVIRONMENT}" "${env_var_name}")")
+            fi
+        elif (( ${#POSITIONAL_ITEMS[@]} == 2 )) && [[ "${POSITIONAL_ITEMS[0]}" != *=* && "${POSITIONAL_ITEMS[1]}" != *=* ]]; then
+            env_var_name="${POSITIONAL_ITEMS[0]}"
+            [[ "${env_var_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || fail "Invalid env var name: ${env_var_name}"
+            [[ -z "${SOURCE_KEY}" ]] || fail "--source-key requires --from-heroku"
+            SET_NAMES+=("${env_var_name}")
+            SET_VALUES+=("${POSITIONAL_ITEMS[1]}")
+            if [[ -n "${PARAMETER_NAME}" ]]; then
+                SET_PARAMETER_NAMES+=("${PARAMETER_NAME}")
+            else
+                SET_PARAMETER_NAMES+=("$(default_secret_parameter_name "${STACK_NAME}" "${ENVIRONMENT}" "${env_var_name}")")
+            fi
+        else
+            [[ -z "${PARAMETER_NAME}" ]] || fail "--parameter-name only supports a single target variable"
+            [[ -z "${SOURCE_KEY}" ]] || fail "--source-key requires --from-heroku"
+            for item in "${POSITIONAL_ITEMS[@]}"; do
+                [[ "${item}" == *=* ]] || fail "For multiple local values, use NAME=VALUE pairs"
+                env_var_name="${item%%=*}"
+                env_var_value="${item#*=}"
+                [[ -n "${env_var_name}" && "${env_var_name}" != "${env_var_value}" ]] || fail "Invalid NAME=VALUE pair: ${item}"
+                [[ "${env_var_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || fail "Invalid env var name: ${env_var_name}"
+                [[ -n "${env_var_value}" ]] || fail "Value for ${env_var_name} is empty"
+                SET_NAMES+=("${env_var_name}")
+                SET_VALUES+=("${env_var_value}")
+                SET_PARAMETER_NAMES+=("$(default_secret_parameter_name "${STACK_NAME}" "${ENVIRONMENT}" "${env_var_name}")")
+            done
+        fi
+    fi
+else
+    [[ -z "${SOURCE_KEY}" ]] || fail "--source-key requires the set subcommand"
+    [[ -z "${PARAMETER_NAME}" || ${#POSITIONAL_ITEMS[@]} -eq 1 ]] || fail "--parameter-name only supports a single target variable"
+    for env_var_name in "${POSITIONAL_ITEMS[@]}"; do
+        [[ "${env_var_name}" != *=* ]] || fail "Unset expects env var names, not NAME=VALUE pairs: ${env_var_name}"
+        [[ "${env_var_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || fail "Invalid env var name: ${env_var_name}"
+        UNSET_NAMES+=("${env_var_name}")
+        if [[ -n "${PARAMETER_NAME}" ]]; then
+            UNSET_PARAMETER_NAMES+=("${PARAMETER_NAME}")
+        else
+            UNSET_PARAMETER_NAMES+=("$(default_secret_parameter_name "${STACK_NAME}" "${ENVIRONMENT}" "${env_var_name}")")
+        fi
+    done
+fi
+
+if [[ "${SUBCOMMAND}" == "set" ]]; then
+    for i in "${!SET_NAMES[@]}"; do
+        env_var_name="${SET_NAMES[$i]}"
+        config_value="${SET_VALUES[$i]}"
+        parameter_name="${SET_PARAMETER_NAMES[$i]}"
+        parameter_arn="$(ssm_parameter_arn "${parameter_name}")"
+
+        aws ssm put-parameter \
+            --name "${parameter_name}" \
+            --type SecureString \
+            --overwrite \
+            --value "${config_value}" >/dev/null
+
+        update_tfvars_secret_map "${TFVARS_FILE}" "${MAP_NAME}" "${env_var_name}" set "${parameter_arn}"
+        echo "Stored ${env_var_name} in SSM: ${parameter_name}"
+        echo "Updated ${TFVARS_FILE}: ${MAP_NAME}.${env_var_name} -> ${parameter_arn}"
+    done
+
+    terraform fmt "${TFVARS_FILE}" >/dev/null
+else
+    for i in "${!UNSET_NAMES[@]}"; do
+        env_var_name="${UNSET_NAMES[$i]}"
+        parameter_name="${UNSET_PARAMETER_NAMES[$i]}"
+
+        update_tfvars_secret_map "${TFVARS_FILE}" "${MAP_NAME}" "${env_var_name}" unset
+        echo "Removed ${env_var_name} from ${TFVARS_FILE} (${MAP_NAME})"
+
+        if [[ "${KEEP_PARAMETER}" == "false" ]]; then
+            if aws ssm get-parameter --name "${parameter_name}" >/dev/null 2>&1; then
+                aws ssm delete-parameter --name "${parameter_name}" >/dev/null
+                echo "Deleted SSM parameter: ${parameter_name}"
+            else
+                echo "SSM parameter not found, skipped delete: ${parameter_name}" >&2
+            fi
+        fi
+    done
+
+    terraform fmt "${TFVARS_FILE}" >/dev/null
+fi
+
+if [[ "${REDEPLOY}" == "true" ]]; then
+    "${SCRIPT_DIR}/ensure-terraform-state" >/dev/null
+    terraform_init "${STACK_NAME}" "${ENVIRONMENT}"
+
+    IMAGE_TAG="$(require_deploy_config_value "${ENVIRONMENT}" "IMAGE_TAG")"
+    APP_IMAGE_URI="$(ecr_repository_uri "${STACK_NAME}" "${ENVIRONMENT}" "app"):${IMAGE_TAG}"
+    ensure_ecr_image_tag "${STACK_NAME}" "${ENVIRONMENT}" "app" "${IMAGE_TAG}"
+
+    echo
+    echo "Applying ECS task definition changes + redeploying ${STACK_NAME}/${ENVIRONMENT} with current image tag ${IMAGE_TAG}..."
+    terraform_apply_task_definitions_with_image "${STACK_NAME}" "${ENVIRONMENT}" "${APP_IMAGE_URI}"
+    "${SCRIPT_DIR}/deploy" "${STACK_NAME}" "${ENVIRONMENT}" "${IMAGE_TAG}"
+else
+    echo
+    echo "Next:"
+    echo "  ./scripts/infra-apply ${STACK_NAME} ${ENVIRONMENT}"
+    echo "  ./scripts/deploy ${STACK_NAME} ${ENVIRONMENT}"
+fi

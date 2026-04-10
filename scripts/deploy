@@ -13,7 +13,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/internal/aws-common.sh
 source "${SCRIPT_DIR}/internal/aws-common.sh"
 
-IMAGE_TAG="${3:-${IMAGE_TAG:-$(latest_ecr_image_tag "${STACK_NAME}" "${ENVIRONMENT}" "app")}}"
+IMAGE_TAG="${3:-${IMAGE_TAG:-$(require_deploy_config_value "${ENVIRONMENT}" "IMAGE_TAG")}}"
 APP_IMAGE_URI="$(ecr_repository_uri "${STACK_NAME}" "${ENVIRONMENT}" "app"):${IMAGE_TAG}"
 
 require_commands aws jq terraform

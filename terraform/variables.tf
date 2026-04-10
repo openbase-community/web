@@ -236,40 +236,8 @@ variable "cache_node_type" {
   default     = "cache.t4g.micro"
 }
 
-variable "common_environment" {
-  description = "Non-secret environment variables shared by the ECS services."
-  type        = map(string)
-  default     = {}
-}
-
-variable "web_environment" {
-  description = "Additional non-secret environment variables for the web service."
-  type        = map(string)
-  default     = {}
-}
-
-variable "worker_environment" {
-  description = "Additional non-secret environment variables for the worker service."
-  type        = map(string)
-  default     = {}
-}
-
 variable "common_secrets" {
   description = "Map of environment variable name to Secrets Manager or SSM parameter ARN shared by all ECS services."
-  type        = map(string)
-  default     = {}
-  sensitive   = true
-}
-
-variable "web_secrets" {
-  description = "Map of environment variable name to Secrets Manager or SSM parameter ARN for the web service."
-  type        = map(string)
-  default     = {}
-  sensitive   = true
-}
-
-variable "worker_secrets" {
-  description = "Map of environment variable name to Secrets Manager or SSM parameter ARN for the worker service."
   type        = map(string)
   default     = {}
   sensitive   = true
