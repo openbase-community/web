@@ -21,3 +21,32 @@ class AddValueHistorySerializer(serializers.Serializer):
 
     amount = serializers.DecimalField(max_digits=5, decimal_places=2)
     status = serializers.CharField()
+
+
+class StripeCustomerPortalRequestSerializer(serializers.Serializer):
+    return_url = serializers.URLField(required=False)
+
+
+class StripeCheckoutRequestSerializer(serializers.Serializer):
+    success_url = serializers.URLField(required=False)
+    cancel_url = serializers.URLField(required=False)
+
+
+class URLResponseSerializer(serializers.Serializer):
+    url = serializers.URLField()
+
+
+class PaymentMessageResponseSerializer(serializers.Serializer):
+    message = serializers.CharField()
+
+
+class PaymentErrorResponseSerializer(serializers.Serializer):
+    error = serializers.CharField()
+
+
+class WebhookPayloadSerializer(serializers.Serializer):
+    signedPayload = serializers.CharField(required=False)  # noqa: N815
+
+
+class AppleSubscriptionRequestSerializer(serializers.Serializer):
+    transaction_id = serializers.CharField()

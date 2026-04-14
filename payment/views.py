@@ -32,6 +32,7 @@ from django.conf import settings
 from django.contrib.sites.shortcuts import get_current_site
 from django.http import JsonResponse
 from django.utils import timezone
+from drf_spectacular.utils import OpenApiTypes, extend_schema
 from rest_framework import generics, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -203,6 +204,10 @@ def verify_and_decode_signed_transaction(signed_transaction):
 class AppleWebhookView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=serializers.WebhookPayloadSerializer,
+        responses=serializers.PaymentMessageResponseSerializer,
+    )
     def post(self, request, *args, **kwargs):
         signed_notification = request.data.get("signedPayload")
         if not signed_notification:
@@ -270,6 +275,10 @@ def get_transaction_history(
 
 # For user-uploaded transaction IDs
 class AppleSubscription(APIView):
+    @extend_schema(
+        request=serializers.AppleSubscriptionRequestSerializer,
+        responses=serializers.PaymentMessageResponseSerializer,
+    )
     def post(self, request, *args, **kwargs):
         transaction_id = str(request.data.get("transaction_id"))
         if transaction_id is None:
@@ -306,6 +315,13 @@ class AppleSubscription(APIView):
 class StripeCustomerPortalView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        request=serializers.StripeCustomerPortalRequestSerializer,
+        responses={
+            200: serializers.URLResponseSerializer,
+            400: serializers.PaymentErrorResponseSerializer,
+        },
+    )
     def post(self, request, *args, **kwargs):
         account = request.user.get_account()
         if not account.customer_id:
@@ -339,6 +355,13 @@ class StripeCustomerPortalView(APIView):
 class StripeCheckoutView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        request=serializers.StripeCheckoutRequestSerializer,
+        responses={
+            200: serializers.URLResponseSerializer,
+            400: serializers.PaymentErrorResponseSerializer,
+        },
+    )
     def post(self, request, *args, **kwargs):
         account = request.user.get_account()
 
@@ -386,6 +409,10 @@ class StripeCheckoutView(APIView):
 class StripeWebhookView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=OpenApiTypes.OBJECT,
+        responses={200: None, 400: None},
+    )
     def post(self, request, *args, **kwargs):
         payload = request.body
         sig_header = request.META.get("HTTP_STRIPE_SIGNATURE")
