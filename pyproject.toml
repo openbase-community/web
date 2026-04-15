@@ -17,6 +17,7 @@ dependencies = [
     "django-storages[s3]>=1.14",
     "djangorestframework>=3.16",
     "drf-spectacular>=0.29",
+    "flowcamp-api",
     "gunicorn>=23.0",
     "hiredis>=3.3",
     "httpx[http2]>=0.28",
