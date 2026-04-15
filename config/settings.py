@@ -248,6 +248,38 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
     "DEFAULT_GENERATOR_CLASS": "config.spectacular_generators.TitleSettingGenerator",
     "COMPONENT_SPLIT_REQUEST": True,
+    "ENUM_NAME_OVERRIDES": {
+        "WooScoreReviewTargetTypeEnum": [
+            ("teacher", "Teacher"),
+            ("lineage", "Lineage"),
+            ("retreat_center", "Retreat center"),
+            ("retreat_series", "Retreat series"),
+        ],
+        "WooScoreProfileClaimTargetTypeEnum": [
+            ("teacher", "Teacher"),
+            ("retreat_center", "Retreat center"),
+            ("lineage", "Lineage"),
+        ],
+        "WooScoreReviewStatusEnum": [
+            ("pending", "Pending moderation"),
+            ("published", "Published"),
+            ("human_review", "Human review"),
+            ("rejected", "Rejected"),
+            ("removed", "Removed"),
+        ],
+        "WooScoreProfileClaimStatusEnum": [
+            ("pending", "Pending"),
+            ("auto_verified", "Auto verified"),
+            ("manual_review", "Manual review"),
+            ("approved", "Approved"),
+            ("rejected", "Rejected"),
+        ],
+        "WooScoreReviewQueueStatusEnum": [
+            ("open", "Open"),
+            ("upheld", "Upheld"),
+            ("dismissed", "Dismissed"),
+        ],
+    },
 }
 
 ASGI_APPLICATION = "config.routing.application"
