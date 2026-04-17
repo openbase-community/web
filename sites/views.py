@@ -16,8 +16,9 @@ async def serve_index(request, resource):
     if not site_attributes:
         return HttpResponse("Site not found.", status=404)
 
-    site_s3_folder = site_attributes.s3_frontend_folder
-    cache_key = f"index_html_cache_{site_s3_folder}"
+    site_s3_folder = site_attributes.s3_frontend_folder.strip().strip("/")
+    site_s3_domain = (site_attributes.s3_custom_domain or settings.AWS_S3_CUSTOM_DOMAIN).strip()
+    cache_key = f"index_html_cache_{site_s3_domain}_{site_s3_folder}"
     cache_timeout = 10  # Cache timeout in seconds
 
     # Attempt to get the cached content asynchronously
@@ -28,7 +29,8 @@ async def serve_index(request, resource):
         # Fetch the content using httpx
         async with httpx.AsyncClient() as client:
             try:
-                url = f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/{site_s3_folder}/index.html"
+                frontend_path = f"{site_s3_folder}/index.html" if site_s3_folder else "index.html"
+                url = f"https://{site_s3_domain}/{frontend_path}"
                 response = await client.get(url)
                 response.raise_for_status()
                 file_contents = response.text
