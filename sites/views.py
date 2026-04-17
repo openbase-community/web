@@ -7,6 +7,22 @@ from django.middleware.csrf import get_token
 from .utils import aget_current_site_attributes
 
 
+def rewrite_root_asset_urls(html: str, *, cdn_domain: str, frontend_folder: str) -> str:
+    base_url = f"https://{cdn_domain}/{frontend_folder}" if frontend_folder else f"https://{cdn_domain}"
+    asset_prefixes = (
+        "assets/",
+        "images/",
+        "favicon",
+        "manifest",
+        "site.webmanifest",
+        "vite.svg",
+    )
+    for attribute in ("href", "src"):
+        for prefix in asset_prefixes:
+            html = html.replace(f'{attribute}="/{prefix}', f'{attribute}="{base_url}/{prefix}')
+    return html
+
+
 async def serve_index(request, resource):
     # Check if requested type is JSON - in this case the error is likely 404
     if "application/json" in (request.META.get("HTTP_ACCEPT") or []):
@@ -33,7 +49,11 @@ async def serve_index(request, resource):
                 url = f"https://{site_s3_domain}/{frontend_path}"
                 response = await client.get(url)
                 response.raise_for_status()
-                file_contents = response.text
+                file_contents = rewrite_root_asset_urls(
+                    response.text,
+                    cdn_domain=site_s3_domain,
+                    frontend_folder=site_s3_folder,
+                )
 
                 # Cache the fetched content asynchronously
                 await cache.aset(cache_key, file_contents, cache_timeout)
