@@ -16,6 +16,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "1"
+USE_WHITENOISE = DEBUG and os.environ.get("DJANGO_USE_WHITENOISE", "0") == "1"
 SITE_ID = 1 if DEBUG else None
 
 # SECURITY WARNING: keep the secret key used in production secret!
@@ -60,7 +61,7 @@ INSTALLED_APPS = [
     *get_installed_apps(),
 ]
 
-if DEBUG:
+if USE_WHITENOISE:
     staticfiles_index = INSTALLED_APPS.index("django.contrib.staticfiles")
     INSTALLED_APPS.insert(staticfiles_index, "whitenoise.runserver_nostatic")
 
@@ -78,8 +79,10 @@ MIDDLEWARE = [
 ]
 
 # Add debug-only middleware
-if DEBUG:
+if USE_WHITENOISE:
     MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
+
+if DEBUG:
     MIDDLEWARE.append("config.middlewares.AllowIframeMiddleware")
 
 # CORS settings
@@ -164,14 +167,18 @@ if DEBUG:
 
     MEDIA_URL = "/media/"
     MEDIA_ROOT = BASE_DIR / "media"
-    WHITENOISE_USE_FINDERS = True
+    WHITENOISE_USE_FINDERS = USE_WHITENOISE
 
     STORAGES = {
         "default": {
             "BACKEND": "django.core.files.storage.FileSystemStorage",
         },
         "staticfiles": {
-            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+            "BACKEND": (
+                "whitenoise.storage.CompressedStaticFilesStorage"
+                if USE_WHITENOISE
+                else "django.contrib.staticfiles.storage.StaticFilesStorage"
+            ),
         },
     }
 else:
