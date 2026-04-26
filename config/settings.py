@@ -118,7 +118,7 @@ WSGI_APPLICATION = "config.wsgi.application"
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
 DATABASES = {"default": dj_database_url.config()}
-DATABASES["default"]["CONN_MAX_AGE"] = 60
+DATABASES["default"]["CONN_MAX_AGE"] = 60 if DEBUG else 0
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
@@ -369,6 +369,7 @@ _extra_cors_origins = [
 ]
 CSRF_TRUSTED_ORIGINS = list(CSRF_TRUSTED_ORIGINS) + _extra_csrf_origins
 CORS_ALLOWED_ORIGINS = list(CORS_ALLOWED_ORIGINS) + _extra_cors_origins
+CORS_ALLOW_CREDENTIALS = True
 
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET")
