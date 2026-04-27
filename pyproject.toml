@@ -46,9 +46,6 @@ dev = [
     "taskiq[reload]>=0.12",
 ]
 
-[tool.uv]
-exclude-newer = "1 week"
-
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
