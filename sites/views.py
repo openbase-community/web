@@ -34,7 +34,14 @@ async def serve_index(request, resource):
         return HttpResponse("Site not found.", status=404)
 
     site_s3_folder = site_attributes.s3_frontend_folder.strip().strip("/")
-    site_s3_domain = (site_attributes.s3_custom_domain or settings.AWS_S3_CUSTOM_DOMAIN).strip()
+    site_s3_domain = site_attributes.s3_custom_domain.strip()
+    if site_s3_folder and not site_s3_domain:
+        return HttpResponse(
+            "Deployment site is missing a public asset domain. Run deployment site sync again.",
+            status=500,
+        )
+    if not site_s3_domain:
+        site_s3_domain = settings.AWS_S3_CUSTOM_DOMAIN.strip()
     cache_key = f"index_html_cache_{site_s3_domain}_{site_s3_folder}"
     cache_timeout = 10  # Cache timeout in seconds
 
