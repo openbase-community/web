@@ -4,12 +4,14 @@ from urllib.parse import urlparse
 
 import dj_database_url
 import sentry_sdk
+from dotenv import load_dotenv
 
 from config.installed_apps import get_installed_apps, load_all_package_settings
 from config.logging import get_logging_config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR.parent / ".env")
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
